@@ -222,8 +222,8 @@ th{font-weight:600}table{font-size:14px}
 <main class="main"><header class="top"><div><h1 id="moduleTitle">الرئيسية</h1><div class="top-sub">إدارة الرسوم والتحصيل والتوزيع</div></div><div class="top-status">النظام جاهز</div></header><div class="content">
 
 <section id="home" class="card"><h3>ملخص السنة</h3><div class="grid">
-<div><label>السنة</label><div class="big" id="hy"></div></div><div><label>عدد الطلبة</label><div class="big">1,414</div></div>
-<div><label>عدد المراحل</label><div class="big">28</div></div><div><label>إجمالي المستهدفات</label><div class="big" id="ht"></div></div></div></section>
+<div><label>السنة</label><div class="big" id="hy"></div></div><div><label>عدد الطلبة</label><div class="big" id="hsc">0</div></div>
+<div><label>عدد المراحل</label><div class="big" id="hst">0</div></div><div><label>إجمالي المستهدفات</label><div class="big" id="ht"></div></div></div></section>
 
 <section id="settings" class="hidden">
 <div class="card"><h3>⚙️ إعدادات العام — قابلة للتعديل</h3><div class="grid">
@@ -275,16 +275,16 @@ th{font-weight:600}table{font-size:14px}
     <span id="distSummaryPeriod" class="muted">القسط الحالي: —</span>
   </div>
   <div class="grid" style="margin-top:10px">
-    <div><label>المستهدف</label><div class="big" id="sumInstallmentTarget">0 ج</div></div>
+    <div><label>المستهدف</label><div class="big" id="sumInstallmentTarget">0.00 ج</div><div class="muted" style="margin-top:4px">المرحل: <b id="sumInstallmentCarry">0.00 ج</b></div><div class="muted">المستهدف الفعلي: <b id="sumInstallmentEffective">0.00 ج</b></div></div>
     <div><label>تم توزيعه</label><div class="big" id="sumInstallmentDistributed">0 ج</div></div>
     <div><label>المتبقي للقسط</label><div class="big" id="sumInstallmentRemaining">0 ج</div></div>
     <div><label>نسبة التنفيذ</label><div class="big" id="sumInstallmentPercent">0%</div></div>
   </div>
   <div style="margin-top:12px">
-    <div style="font-weight:bold;margin-bottom:6px">المتبقي للوصول إلى الـ Budget السنوي</div>
+    <div style="font-weight:bold;margin-bottom:6px">المتبقي للوصول إلى إجمالي المستحق حسب لائحة المصروفات (الطلبة النشطون)</div>
     <div style="overflow:auto">
       <table>
-        <thead><tr><th>نوع المصروف</th><th>Budget السنوي</th><th>تم توزيعه</th><th>المتبقي</th></tr></thead>
+        <thead><tr><th>نوع المصروف</th><th>المستحق حسب اللائحة</th><th>تم توزيعه</th><th>المتبقي للائحة</th></tr></thead>
         <tbody id="distributionBudgetBody">
           <tr><td colspan="4" class="muted">لم تتم أي عملية توزيع بعد.</td></tr>
         </tbody>
@@ -292,9 +292,9 @@ th{font-weight:600}table{font-size:14px}
     </div>
   </div>
   <div class="grid" style="margin-top:10px">
-    <div><label>إجمالي الـ Budget السنوي</label><div class="big" id="sumAnnualBudget">0 ج</div></div>
+    <div><label>إجمالي المستحق حسب لائحة المصروفات (الطلبة النشطون)</label><div class="big" id="sumAnnualBudget">0.00 ج</div></div>
     <div><label>إجمالي الموزع</label><div class="big" id="sumAnnualDistributed">0 ج</div></div>
-    <div><label>المتبقي للـ Budget</label><div class="big" id="sumAnnualRemaining">0 ج</div></div>
+    <div><label>المتبقي للائحة</label><div class="big" id="sumAnnualRemaining">0.00 ج</div></div>
   </div>
 </div>
 <div class="grid">
@@ -364,7 +364,27 @@ th{font-weight:600}table{font-size:14px}
 </div>
 <script>
 const API_URL='https://script.google.com/macros/s/AKfycby9ZiaK8NPUjEQtkNSvxfCnALkL0aKo80lxX12fj5uz7d3fTioMfbM7Qoh8rqg826Hu/exec'; // Google Apps Script Web App URL
-let D={academicYear:'',yearStart:'',yearEnd:'',installments:[],rules:[],stages:[],stageFees:{},students:[],allocations:[],operations:[]};
+let D={academicYear:'',yearStart:'',yearEnd:'',installments:[],rules:[],stages:[],stageFees:{},students:[],allocations:[],operations:[],discounts:[]};
+/* ===== Single-source money helpers (BR-10 / BR-2 / BR-4 / BR-8) ===== */
+function money2(v){const n=Number(v||0);if(!isFinite(n))return 0;const r=Math.round(n*100)/100;return Math.abs(r)<0.005?0:r;}
+function fmtMoney(v){return money2(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function effectiveTarget(i){return money2(Number(i.target||0)+Number(i.carry||0));}
+function activeStudents(){return (D.students||[]).filter(s=>s.active!==false);}
+function sumLines(pred){return money2((D.allocations||[]).filter(pred||(()=>true)).reduce((x,a)=>x+money2(a.amount),0));}
+function sumLinesByType(pred){const o={};(D.allocations||[]).filter(pred||(()=>true)).forEach(a=>Object.entries(allocationBreakdown(a)).forEach(([t,v])=>{o[t]=money2((o[t]||0)+money2(v));}));return o;}
+/* BR-4: split an installment Target across expense types by the weight of each type's due in that installment (active students). Σ == Target exactly. */
+function installmentTargetByType(inst){
+  const idx=Number(inst.id)-1, w={}; let tw=0;
+  activeStudents().forEach(s=>{const fees=D.stageFees[s.grade]||{};(D.rules||[]).forEach(r=>{const v=Number(fees[r.name]||0)*Number(r['q'+(idx+1)]||0)/100; if(v>0){w[r.name]=(w[r.name]||0)+v; tw+=v;}});});
+  const target=money2(inst.target), out={}; let acc=0; const names=(D.rules||[]).map(r=>r.name);
+  names.forEach((n,i)=>{ if(tw<=0){out[n]=0;return;} let v=(i===names.length-1)?money2(target-acc):money2(target*(w[n]||0)/tw); if(i===names.length-1&&!(w[n]>0)&&Math.abs(v)<0.005)v=0; out[n]=v; acc=money2(acc+v); });
+  if(tw>0){ // load rounding residue on the last type that has weight, so Σ == Target exactly
+    const last=[...names].reverse().find(n=>w[n]>0); if(last){ const others=money2(names.filter(n=>n!==last).reduce((x,n)=>x+out[n],0)); out[last]=money2(target-others); } }
+  return out;
+}
+/* BR-8: DISCOUNTS is the source of truth; date = run date. */
+function discountsFor(pred){return (D.discounts||[]).filter(pred||(()=>true));}
+function sumDiscounts(pred){return money2(discountsFor(pred).reduce((x,d)=>x+money2(d.amount),0));}
 async function api(action,payload){
   const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload:payload||{}})});
   const text=await r.text(); let j;
@@ -383,7 +403,7 @@ function describeNonJsonResponse(r,text){
   else if(/error|exception/.test(low)) hint='الخادم أعاد صفحة خطأ من Apps Script — راجع Executions في محرر Apps Script لمعرفة سبب الخطأ.';
   return 'الخادم أعاد صفحة HTML بدلًا من JSON (HTTP '+r.status+(title?' — '+title.trim():'')+'). '+hint;
 }
-function applyState(state){D=state;ensureStudentData();populateStageFilter();}
+function applyState(state){D=state;if(!Array.isArray(D.discounts))D.discounts=[];ensureStudentData();populateStageFilter();}
 function populateStageFilter(){const el=document.getElementById('sg');if(!el)return;const cur=el.value;el.innerHTML='<option value="">كل المراحل</option>'+(D.stages||[]).map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');el.value=(D.stages||[]).includes(cur)?cur:'';}
 function apiError(err){alert('خطأ في الاتصال بالخادم: '+(err.message||err));}
 async function apiLoad(){try{applyState(await api('load'));show(document.querySelector('nav button[data-module].active')?.getAttribute('data-module')||'home');}catch(err){apiError(err);}}
@@ -415,7 +435,7 @@ function show(id){
     if(h) h.textContent=titles[id]||'نظام تحصيلات الطلبة';
     if(id==='settings') settings();
     else if(id==='students') studentsView();
-    else if(id==='dist') distributionView();
+    else if(id==='dist'){const dv=document.getElementById('dd')?.value||'';const idx=D.installments.findIndex(i=>dv>=i.from&&dv<=i.to);renderDistributionSummary(idx>=0?idx:0);}
     else if(id==='reports'){
       populateReportStudentSelect(document.getElementById('collectionStudentSearch')?.value||'',false);
     }
@@ -427,10 +447,10 @@ function show(id){
   }
 }
 
-function home(){document.getElementById('hy').textContent=D.academicYear;document.getElementById('ht').textContent=D.installments.reduce((a,x)=>a+x.target,0).toLocaleString()+' ج';const sy=document.getElementById('sideYear');if(sy)sy.textContent=D.academicYear}
+function home(){document.getElementById('hy').textContent=D.academicYear;document.getElementById('ht').textContent=fmtMoney(D.installments.reduce((a,x)=>a+money2(x.target),0))+' ج';const c=document.getElementById('hsc');if(c)c.textContent=(D.students||[]).length.toLocaleString();const g=document.getElementById('hst');if(g)g.textContent=(D.stages||[]).length.toLocaleString();const sy=document.getElementById('sideYear');if(sy)sy.textContent=D.academicYear}
 function settings(){
 document.getElementById('ay').value=D.academicYear;document.getElementById('ys').value=D.yearStart;document.getElementById('ye').value=D.yearEnd;
-document.getElementById('inst').innerHTML=D.installments.map(i=>`<tr><td>${i.name}</td><td><input id="f${i.id}" type="date" value="${i.from}"></td><td><input id="t${i.id}" type="date" value="${i.to}"></td><td><input id="x${i.id}" type="number" value="${i.target}"></td><td>${(i.distributed||0).toLocaleString()}</td><td>${(i.carry||0).toLocaleString()}</td></tr>`).join('');
+document.getElementById('inst').innerHTML=D.installments.map(i=>`<tr><td>${i.name}</td><td><input id="f${i.id}" type="date" value="${i.from}"></td><td><input id="t${i.id}" type="date" value="${i.to}"></td><td><input id="x${i.id}" type="number" value="${i.target}"></td><td>${fmtMoney(sumLines(a=>Number(a.installmentId)===Number(i.id)))}</td><td>${fmtMoney(i.carry)}</td></tr>`).join('');
 document.getElementById('rules').innerHTML=D.rules.map((r,n)=>`<tr><td>${r.name}</td><td><span style="display:flex;align-items:center;gap:2px"><input id="a${n}" type="number" value="${r.q1}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="b${n}" type="number" value="${r.q2}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="c${n}" type="number" value="${r.q3}"><b>%</b></span></td></tr>`).join('');
 document.getElementById('fees').innerHTML=Object.entries(D.stageFees).map(([g,f])=>`<tr><td>${g}</td>${['تعليم','نشاط','باص','كتب الوزارة','كتب خارجية'].map(k=>`<td><input id="v_${g}_${k}" type="number" value="${f[k]||0}"></td>`).join('')}</tr>`).join('');
 }
@@ -489,21 +509,8 @@ function escapeHtml(v){
 }
 function getStudent(id){return D.students.find(s=>String(s.ser)===String(id));}
 function allocationBreakdown(a){
-  if(a.breakdown && Object.keys(a.breakdown).length) return a.breakdown;
-  // Backfill old allocations proportionally from the installment's fee rules.
-  const s=getStudent(a.studentId);
-  if(!s) return {};
-  const idx=Math.max(0,Number(a.installmentId||1)-1);
-  const fees=D.stageFees[s.grade]||{}, out={};
-  let totalDue=0;
-  (D.rules||[]).forEach(r=>{
-    const v=Number(fees[r.name]||0)*Number(r['q'+(idx+1)]||0)/100;
-    if(v>0){out[r.name]=v;totalDue+=v;}
-  });
-  if(totalDue<=0)return {};
-  const factor=Number(a.amount||0)/totalDue;
-  Object.keys(out).forEach(k=>out[k]*=factor);
-  return out;
+  // BR-6: DISTRIBUTION_LINES is the only source of the distributed breakdown — no backfill / alternative computation.
+  return (a&&a.breakdown)||{};
 }
 function openStudentModal(id){
   const s=getStudent(id); if(!s)return;
@@ -525,13 +532,13 @@ function openStudentModal(id){
   document.getElementById('studentModalMeta').textContent=`كود الطالب: ${s.code||s.ser} — المرحلة: ${s.grade||'—'} — الحالة: ${studentStatus(s)}`;
 
   const typeRows=Object.entries(byInstType).flatMap(([inst,types])=>
-    Object.entries(types).map(([type,v])=>`<tr><td>${escapeHtml(inst)}</td><td>${escapeHtml(type)}</td><td>${Number(v).toLocaleString(undefined,{maximumFractionDigits:2})} ج</td></tr>`)
+    Object.entries(types).map(([type,v])=>`<tr><td>${escapeHtml(inst)}</td><td>${escapeHtml(type)}</td><td>${fmtMoney(v)} ج</td></tr>`)
   );
 
   document.getElementById('studentModalBody').innerHTML=`
     <div class="grid">
       <div><label>كود الطالب</label><div class="big">${escapeHtml(s.code||s.ser)}</div></div>
-      <div><label>إجمالي المبالغ الموزعة</label><div class="big">${total.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div>
+      <div><label>إجمالي المبالغ الموزعة</label><div class="big">${fmtMoney(total)} ج</div></div>
       <div><label>الحالة</label><div class="big">${studentStatus(s)}</div></div>
     </div>
 
@@ -548,7 +555,7 @@ function openStudentModal(id){
       `:'<p class="muted">لم يتم توزيع أي مبلغ على الطالب حتى الآن.</p>'}
       <div style="font-weight:bold;margin-top:12px">إجمالي كل نوع مصروف</div>
       <table><thead><tr><th>نوع المصروف</th><th>الإجمالي الموزع</th></tr></thead>
-      <tbody>${Object.entries(byType).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${Number(v).toLocaleString(undefined,{maximumFractionDigits:2})} ج</td></tr>`).join('') || '<tr><td colspan="2" class="muted">لا توجد توزيعات.</td></tr>'}</tbody></table>
+      <tbody>${Object.entries(byType).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${fmtMoney(v)} ج</td></tr>`).join('') || '<tr><td colspan="2" class="muted">لا توجد توزيعات.</td></tr>'}</tbody></table>
     </div>
 
     <div class="card" style="margin-top:10px;padding:12px">
@@ -562,7 +569,7 @@ function openStudentModal(id){
       <h4 style="margin:0 0 8px">📋 تفاصيل عمليات التوزيع</h4>
       ${alloc.length?`
       <table><thead><tr><th>التاريخ</th><th>القسط</th><th>المبلغ</th><th>رقم العملية</th></tr></thead>
-      <tbody>${alloc.map(a=>`<tr><td>${a.date||'—'}</td><td>${escapeHtml(a.installmentName||'—')}</td><td>${Number(a.amount||0).toLocaleString(undefined,{maximumFractionDigits:2})} ج</td><td>${escapeHtml(a.operationId||'—')}</td></tr>`).join('')}</tbody></table>
+      <tbody>${alloc.map(a=>`<tr><td>${a.date||'—'}</td><td>${escapeHtml(a.installmentName||'—')}</td><td>${fmtMoney(a.amount)} ج</td><td>${escapeHtml(a.operationId||'—')}</td></tr>`).join('')}</tbody></table>
       `:'<p class="muted">لا توجد عمليات.</p>'}
     </div>
 
@@ -676,14 +683,14 @@ function distribute(){
   document.getElementById('distOutput').innerHTML=
   `<div class="card"><div class="grid">
   <div><label>القسط المحدد تلقائيًا</label><div class="big">${D.installments[start].name}</div></div>
-  <div><label>المبلغ المدخل</label><div class="big">${amount.toLocaleString()} ج</div></div>
-  <div><label>تم توزيعه على الطلبة</label><div class="big">${allAllocated.toLocaleString()} ج</div></div>
-  <div><label>غير موزع</label><div class="big">${rem.toLocaleString()} ج</div></div>
+  <div><label>المبلغ المدخل</label><div class="big">${fmtMoney(amount)} ج</div></div>
+  <div><label>تم توزيعه على الطلبة</label><div class="big">${fmtMoney(allAllocated)} ج</div></div>
+  <div><label>غير موزع</label><div class="big">${fmtMoney(rem)} ج</div></div>
   </div>
-  <table><thead><tr><th>القسط</th><th>المستهدف بعد الترحيل</th><th>المبلغ الموزع</th><th>المتبقي</th><th>المرحل</th></tr></thead>
-  <tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1].toLocaleString()}</td><td>${r[2].toLocaleString()}</td><td>${r[3].toLocaleString()}</td><td>${r[4].toLocaleString()}</td></tr>`).join('')}</tbody></table>
+  <table><thead><tr><th>القسط</th><th>المستهدف الفعلي (المستهدف + المرحل)</th><th>المبلغ الموزع</th><th>المتبقي</th><th>المرحل</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td>${fmtMoney(r[1])}</td><td>${fmtMoney(r[2])}</td><td>${fmtMoney(r[3])}</td><td>${fmtMoney(r[4])}</td></tr>`).join('')}</tbody></table>
   <p class="ok">تم تسجيل العملية ${operationId} وتوزيع المبلغ على الطلبة النشطين المستحقين.</p>
-  <p class="muted">مستفيدي الخصم: ${Object.keys(discountMap).length} — إجمالي الخصومات الفعلي: ${actualDiscount.toLocaleString(undefined,{maximumFractionDigits:2})} ج</p>
+  <p class="muted">مستفيدي الخصم: ${Object.keys(discountMap).length} — إجمالي الخصومات الفعلي: ${fmtMoney(actualDiscount)} ج</p>
   </div>`;
 
   renderDistributionSummary(start);
@@ -695,56 +702,40 @@ function distribute(){
 function renderDistributionSummary(startIndex){
   let inst=D.installments[startIndex>=0?startIndex:0];
   if(!inst) return;
-
-  const fmt=v=>Math.round(Number(v||0)).toLocaleString('en-US');
   const set=(id,v)=>{let e=document.getElementById(id);if(e)e.textContent=v;};
 
-  // Current installment: target / distributed / remaining.
-  const target=Number(inst.target||0)+Number(inst.carry||0);
-  const distributed=Number(inst.distributed||0);
-  const remaining=Math.max(0,target-distributed);
-  const pct=target?Math.min(100,distributed/target*100):0;
+  // BR-2: Target / Carry / Effective Target shown separately. BR-6: Distributed = Σ DISTRIBUTION_LINES of this installment.
+  const target=money2(inst.target), carry=money2(inst.carry), effective=effectiveTarget(inst);
+  const distributed=sumLines(a=>Number(a.installmentId)===Number(inst.id));
+  const remaining=money2(Math.max(0,effective-distributed));
+  const pct=effective?Math.min(100,distributed/effective*100):0;
 
   set('distSummaryPeriod','القسط الحالي: '+inst.name);
-  set('sumInstallmentTarget',fmt(target)+' ج');
-  set('sumInstallmentDistributed',fmt(distributed)+' ج');
-  set('sumInstallmentRemaining',fmt(remaining)+' ج');
+  set('sumInstallmentTarget',fmtMoney(target)+' ج');
+  set('sumInstallmentCarry',fmtMoney(carry)+' ج');
+  set('sumInstallmentEffective',fmtMoney(effective)+' ج');
+  set('sumInstallmentDistributed',fmtMoney(distributed)+' ج');
+  set('sumInstallmentRemaining',fmtMoney(remaining)+' ج');
   set('sumInstallmentPercent',pct.toFixed(1)+'%');
 
-  // Annual budget by expense type = stage fee × number of students.
+  // BR-5: "إجمالي المستحق حسب لائحة المصروفات" = stage fee × ACTIVE students (never called Target).
   const budget={};
-  Object.keys(D.stageFees||{}).forEach(stage=>{
-    const count=D.students.filter(s=>s.grade===stage).length;
-    const fees=D.stageFees[stage]||{};
-    Object.keys(fees).forEach(type=>{
-      budget[type]=(budget[type]||0)+Number(fees[type]||0)*count;
-    });
-  });
-
-  // Distributed total comes from the actual student allocation ledger.
-  const totalDistributed=(D.allocations||[]).reduce((a,x)=>a+Number(x.amount||0),0);
-  const distributedByType={};
-  (D.allocations||[]).forEach(a=>Object.entries(allocationBreakdown(a)).forEach(([k,v])=>{
-    distributedByType[k]=(distributedByType[k]||0)+Number(v||0);
-  }));
+  activeStudents().forEach(s=>{const fees=D.stageFees[s.grade]||{};Object.keys(fees).forEach(type=>{budget[type]=money2((budget[type]||0)+Number(fees[type]||0));});});
+  const totalDistributed=sumLines();
+  const distributedByType=sumLinesByType();
   const types=Object.keys(budget);
   const body=document.getElementById('distributionBudgetBody');
   if(body){
     body.innerHTML=types.length ? types.map(type=>{
-      const b=budget[type]||0;
-      // Expense-type attribution will be finalized with the fee-rule engine.
-      // For now the table shows the total student-level distributed amount
-      // separately in the annual totals below.
-      const d=Number(distributedByType[type]||0);
-      return `<tr><td>${escapeHtml(type)}</td><td>${fmt(b)} ج</td><td>${fmt(d)} ج</td><td>${fmt(Math.max(0,b-d))} ج</td></tr>`;
+      const b=money2(budget[type]), d=money2(distributedByType[type]);
+      return `<tr><td>${escapeHtml(type)}</td><td>${fmtMoney(b)} ج</td><td>${fmtMoney(d)} ج</td><td>${fmtMoney(Math.max(0,b-d))} ج</td></tr>`;
     }).join('') :
-    '<tr><td colspan="4" class="muted">لم يتم إدخال Budget حسب نوع المصروف بعد.</td></tr>';
+    '<tr><td colspan="4" class="muted">لم يتم إدخال لائحة المصروفات بعد.</td></tr>';
   }
-
-  const totalBudget=Object.values(budget).reduce((a,b)=>a+Number(b||0),0);
-  set('sumAnnualBudget',fmt(totalBudget)+' ج');
-  set('sumAnnualDistributed',fmt(totalDistributed)+' ج');
-  set('sumAnnualRemaining',fmt(Math.max(0,totalBudget-totalDistributed))+' ج');
+  const totalBudget=money2(Object.values(budget).reduce((a,b)=>a+money2(b),0));
+  set('sumAnnualBudget',fmtMoney(totalBudget)+' ج');
+  set('sumAnnualDistributed',fmtMoney(totalDistributed)+' ج');
+  set('sumAnnualRemaining',fmtMoney(Math.max(0,totalBudget-totalDistributed))+' ج');
 }
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -764,7 +755,7 @@ function excelXmlEscape(v){
   return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
 }
 function excelCell(v, type){
-  if(type==='Number' && isFinite(Number(v))) return `<Cell><Data ss:Type="Number">${Number(v)}</Data></Cell>`;
+  if(type==='Number' && isFinite(Number(v))) return `<Cell><Data ss:Type="Number">${money2(v)}</Data></Cell>`;
   return `<Cell><Data ss:Type="String">${excelXmlEscape(v)}</Data></Cell>`;
 }
 function excelSheet(name, headers, rows){
@@ -797,7 +788,7 @@ function exportStudentsExcel(){
   ensureStudentData();
   const rows=D.students.map(s=>[
     s.ser,s.code||s.ser,s.name,s.grade,studentStatus(s),
-    (D.allocations||[]).filter(a=>String(a.studentId)===String(s.ser)).reduce((x,a)=>x+Number(a.amount||0),0)
+    sumLines(a=>String(a.studentId)===String(s.ser))
   ]);
   downloadExcelXml('بيانات_الطلبة_2026_2027.xls',[
     {name:'الطلبة',headers:['م','كود الطالب','اسم الطالب','المرحلة','الحالة','إجمالي الموزع'],rows},
@@ -894,50 +885,49 @@ function openReport(which){
     renderNotDistributedReport();
   }
 }
+function studentCollectionRows(id){
+  const rows=[];
+  (D.allocations||[]).filter(a=>String(a.studentId)===String(id)).forEach(a=>Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{
+    rows.push([a.date||'—',a.installmentName||('القسط '+a.installmentId),type,money2(v),a.operationId||'—']);
+  }));
+  return rows;
+}
 function renderStudentCollectionReport(){
   const body=document.getElementById('studentCollectionReportBody'); if(!body)return;
   const id=document.getElementById('collectionStudent')?.value;
   if(!id){body.innerHTML='<p class="muted">اختار الطالب لعرض تفاصيل التحصيلات.</p>';return;}
   const s=getStudent(id); if(!s){body.innerHTML='<p class="muted">الطالب غير موجود.</p>';return;}
-  const alloc=(D.allocations||[]).filter(a=>String(a.studentId)===String(id));
+  const rows=studentCollectionRows(id);
+  const total=money2(rows.reduce((x,r)=>x+r[3],0)), disc=sumDiscounts(d=>String(d.studentId)===String(id));
+  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>الطالب</label><div class="big" style="font-size:18px">${escapeHtml(s.name||'—')}</div></div><div><label>إجمالي الموزع</label><div class="big">${fmtMoney(total)} ج</div></div><div><label>إجمالي الخصم</label><div class="big">${fmtMoney(disc)} ج</div></div></div>
+  <div class="scroll" style="max-height:520px"><table><thead><tr><th>التاريخ</th><th>القسط</th><th>نوع المصروف</th><th>المبلغ</th><th>رقم العملية</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td>${escapeHtml(r[1])}</td><td>${escapeHtml(r[2])}</td><td>${fmtMoney(r[3])} ج</td><td>${escapeHtml(r[4])}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">لا توجد توزيعات لهذا الطالب.</td></tr>'}</tbody><tfoot><tr><th colspan="3">الإجمالي</th><th>${fmtMoney(total)} ج</th><th></th></tr></tfoot></table></div>`;
+}
+function distributionSummaryRows(){
+  const from=document.getElementById('rsf')?.value||'',to=document.getElementById('rst')?.value||'',q=document.getElementById('rsq')?.value||'',type=document.getElementById('rstype')?.value||'';
   const rows=[];
-  alloc.forEach(a=>Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{
-    rows.push([a.date||'—',a.installmentName||('القسط '+a.installmentId),type,Number(v||0),a.operationId||'—']);
-  }));
-  const total=rows.reduce((x,r)=>x+r[3],0),disc=alloc.reduce((x,a)=>x+Number(a.discount||0),0);
-  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>الطالب</label><div class="big" style="font-size:18px">${escapeHtml(s.name||'—')}</div></div><div><label>إجمالي الموزع</label><div class="big">${total.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div><div><label>إجمالي الخصم</label><div class="big">${disc.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div></div>
-  <div class="scroll" style="max-height:520px"><table><thead><tr><th>التاريخ</th><th>القسط</th><th>نوع المصروف</th><th>المبلغ</th><th>رقم العملية</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td>${escapeHtml(r[1])}</td><td>${escapeHtml(r[2])}</td><td>${r[3].toLocaleString(undefined,{maximumFractionDigits:2})} ج</td><td>${escapeHtml(r[4])}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">لا توجد توزيعات لهذا الطالب.</td></tr>'}</tbody><tfoot><tr><th colspan="3">الإجمالي</th><th>${total.toLocaleString(undefined,{maximumFractionDigits:2})} ج</th><th></th></tr></tfoot></table></div>`;
+  (D.installments||[]).forEach(inst=>{
+    if(q&&String(inst.id)!==q)return;
+    const targetByType=installmentTargetByType(inst); // BR-4: Σ over types == inst.target
+    (D.rules||[]).forEach(r=>{
+      if(type&&r.name!==type)return;
+      const target=money2(targetByType[r.name]||0);
+      const allocated=money2((D.allocations||[]).filter(a=>Number(a.installmentId)===Number(inst.id)&&(!from||a.date>=from)&&(!to||a.date<=to)).reduce((sum,a)=>sum+money2(allocationBreakdown(a)[r.name]||0),0));
+      rows.push([inst.name,r.name,target,allocated,money2(Math.max(0,target-allocated))]);
+    });
+  });
+  return {rows,from,to,q,type};
 }
 function renderDistributionSummaryReport(){
   const body=document.getElementById('distributionSummaryReportBody'); if(!body)return;
-  const from=document.getElementById('rsf')?.value||'',to=document.getElementById('rst')?.value||'',q=document.getElementById('rsq')?.value||'',type=document.getElementById('rstype')?.value||'';
-  if(from&&to&&from>to){body.innerHTML='<p class="warn">تاريخ البداية يجب أن يكون قبل تاريخ النهاية.</p>';return;}
-  const rows=[];
-  (D.installments||[]).forEach(inst=>{
-    if(q&&String(inst.id)!==q)return;
-    (D.rules||[]).forEach(r=>{
-      if(type&&r.name!==type)return;
-      const dueTarget=Number(inst.target||0)*Number(r['q'+inst.id]||0)/100;
-      const allocated=(D.allocations||[]).filter(a=>Number(a.installmentId)===Number(inst.id)&&(!from||a.date>=from)&&(!to||a.date<=to)).reduce((sum,a)=>sum+Number(allocationBreakdown(a)[r.name]||0),0);
-      rows.push([inst.name,r.name,dueTarget,allocated,Math.max(0,dueTarget-allocated)]);
-    });
-  });
-  const totals=rows.reduce((x,r)=>{x.target+=r[2];x.dist+=r[3];x.rem+=r[4];return x},{target:0,dist:0,rem:0});
-  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>إجمالي المستهدف</label><div class="big">${totals.target.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div><div><label>إجمالي الموزع</label><div class="big">${totals.dist.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div><div><label>إجمالي المتبقي</label><div class="big">${totals.rem.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div></div>
-  <div class="scroll" style="max-height:520px"><table><thead><tr><th>القسط</th><th>نوع المصروف</th><th>المستهدف</th><th>الموزع</th><th>المتبقي</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r[0])}</td><td>${escapeHtml(r[1])}</td><td>${r[2].toLocaleString(undefined,{maximumFractionDigits:2})} ج</td><td>${r[3].toLocaleString(undefined,{maximumFractionDigits:2})} ج</td><td>${r[4].toLocaleString(undefined,{maximumFractionDigits:2})} ج</td></tr>`).join('')||'<tr><td colspan="5" class="muted">لا توجد بيانات.</td></tr>'}</tbody><tfoot><tr><th colspan="2">الإجمالي</th><th>${totals.target.toLocaleString(undefined,{maximumFractionDigits:2})}</th><th>${totals.dist.toLocaleString(undefined,{maximumFractionDigits:2})}</th><th>${totals.rem.toLocaleString(undefined,{maximumFractionDigits:2})}</th></tr></tfoot></table></div>`;
+  const R=distributionSummaryRows();
+  if(R.from&&R.to&&R.from>R.to){body.innerHTML='<p class="warn">تاريخ البداية يجب أن يكون قبل تاريخ النهاية.</p>';return;}
+  const rows=R.rows;
+  const totals=rows.reduce((x,r)=>{x.target=money2(x.target+r[2]);x.dist=money2(x.dist+r[3]);x.rem=money2(x.rem+r[4]);return x},{target:0,dist:0,rem:0});
+  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>إجمالي المستهدف</label><div class="big">${fmtMoney(totals.target)} ج</div></div><div><label>إجمالي الموزع</label><div class="big">${fmtMoney(totals.dist)} ج</div></div><div><label>إجمالي المتبقي</label><div class="big">${fmtMoney(totals.rem)} ج</div></div></div>
+  <div class="scroll" style="max-height:520px"><table><thead><tr><th>القسط</th><th>نوع المصروف</th><th>المستهدف</th><th>الموزع</th><th>المتبقي</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r[0])}</td><td>${escapeHtml(r[1])}</td><td>${fmtMoney(r[2])} ج</td><td>${fmtMoney(r[3])} ج</td><td>${fmtMoney(r[4])} ج</td></tr>`).join('')||'<tr><td colspan="5" class="muted">لا توجد بيانات.</td></tr>'}</tbody><tfoot><tr><th colspan="2">الإجمالي</th><th>${fmtMoney(totals.target)} ج</th><th>${fmtMoney(totals.dist)} ج</th><th>${fmtMoney(totals.rem)} ج</th></tr></tfoot></table></div>`;
 }
 function exportDistributionSummaryExcel(){
-  const from=document.getElementById('rsf')?.value||'',to=document.getElementById('rst')?.value||'',q=document.getElementById('rsq')?.value||'',type=document.getElementById('rstype')?.value||'';
-  const rows=[];
-  (D.installments||[]).forEach(inst=>{
-    if(q&&String(inst.id)!==q)return;
-    (D.rules||[]).forEach(r=>{
-      if(type&&r.name!==type)return;
-      const target=Number(inst.target||0)*Number(r['q'+inst.id]||0)/100;
-      const dist=(D.allocations||[]).filter(a=>Number(a.installmentId)===Number(inst.id)&&(!from||a.date>=from)&&(!to||a.date<=to)).reduce((sum,a)=>sum+Number(allocationBreakdown(a)[r.name]||0),0);
-      rows.push([inst.name,r.name,target,dist,Math.max(0,target-dist)]);
-    });
-  });
+  const rows=distributionSummaryRows().rows;
   downloadExcelXml('ملخص_التوزيع.xls',[{name:'ملخص التوزيع',headers:['القسط','نوع المصروف','المستهدف','الموزع','المتبقي'],rows}]);
 }
 function periodAllocations(from,to){
@@ -949,25 +939,24 @@ function reportMatrixColumns(){
   const cols=[]; types.forEach(type=>[1,2,3].forEach(q=>cols.push({type,q,label:`${type} — ق${q}`})));
   return cols;
 }
+function periodDistributionRows(from,to){
+  const alloc=periodAllocations(from,to), cols=reportMatrixColumns(), map={};
+  const ensure=(id,s,name)=>{ if(!map[id]) map[id]={s:s||null,name:(s&&s.name)||name||'—',vals:{},disc:0,total:0}; return map[id]; };
+  alloc.forEach(a=>{const id=String(a.studentId), r=ensure(id,getStudent(id),a.studentName); r.total=money2(r.total+money2(a.amount));
+    Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{const k=type+'|'+a.installmentId;r.vals[k]=money2((r.vals[k]||0)+money2(v));});});
+  // BR-8: discounts from DISCOUNTS (run date within period), including students with no allocation
+  discountsFor(d=>(!from||d.date>=from)&&(!to||d.date<=to)).forEach(d=>{const id=String(d.studentId), r=ensure(id,getStudent(id),d.studentName); r.disc=money2(r.disc+money2(d.amount));});
+  const rows=Object.values(map);
+  return {rows,cols,grand:money2(rows.reduce((x,r)=>x+r.total,0)),grandDisc:money2(rows.reduce((x,r)=>x+r.disc,0)),distributedCount:rows.filter(r=>r.total>0).length};
+}
 function renderPeriodDistributionReport(){
   const body=document.getElementById('periodDistributionReportBody'); if(!body)return;
   const from=document.getElementById('rdf')?.value||'',to=document.getElementById('rdt')?.value||'';
   if(from&&to&&from>to){body.innerHTML='<p class="warn">تاريخ البداية يجب أن يكون قبل تاريخ النهاية.</p>';return}
-  const alloc=periodAllocations(from,to);
-  const ids=[...new Set(alloc.map(a=>String(a.studentId)))];
-  const cols=reportMatrixColumns();
-  const rows=ids.map(id=>{
-    const s=getStudent(id); const vals={}; let total=0,disc=0;
-    alloc.filter(a=>String(a.studentId)===id).forEach(a=>{
-      total+=Number(a.amount||0); disc+=Number(a.discount||0);
-      Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{const k=type+'|'+a.installmentId;vals[k]=(vals[k]||0)+Number(v||0);});
-    });
-    return {s,vals,total,disc};
-  });
-  const grand=rows.reduce((x,r)=>x+r.total,0), grandDisc=rows.reduce((x,r)=>x+r.disc,0);
-  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>عدد الطلبة الذين استلموا توزيعًا</label><div class="big">${rows.length.toLocaleString()}</div></div><div><label>إجمالي المبلغ الموزع</label><div class="big">${grand.toLocaleString()} ج</div></div><div><label>إجمالي الخصومات</label><div class="big">${grandDisc.toLocaleString()} ج</div></div></div>
+  const {rows,cols,grand,grandDisc,distributedCount}=periodDistributionRows(from,to);
+  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>عدد الطلبة الذين استلموا توزيعًا</label><div class="big">${distributedCount.toLocaleString()}</div></div><div><label>إجمالي المبلغ الموزع</label><div class="big">${fmtMoney(grand)} ج</div></div><div><label>إجمالي الخصومات</label><div class="big">${fmtMoney(grandDisc)} ج</div></div></div>
   <div class="scroll" style="max-height:560px"><table><thead><tr><th>اسم الطالب</th>${cols.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('')}<th>الخصم</th><th>الإجمالي</th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td><strong>${escapeHtml(r.s?.name||'—')}</strong></td>${cols.map(c=>`<td>${Number(r.vals[c.type+'|'+c.q]||0).toLocaleString(undefined,{maximumFractionDigits:2})}</td>`).join('')}<td>${r.disc.toLocaleString(undefined,{maximumFractionDigits:2})}</td><td><strong>${r.total.toLocaleString(undefined,{maximumFractionDigits:2})}</strong></td></tr>`).join('')||`<tr><td colspan="${cols.length+3}" class="muted">لا توجد توزيعات فعلية خلال الفترة المحددة.</td></tr>`}</tbody><tfoot><tr><th>الإجمالي</th>${cols.map(c=>`<th>${rows.reduce((x,r)=>x+Number(r.vals[c.type+'|'+c.q]||0),0).toLocaleString(undefined,{maximumFractionDigits:2})}</th>`).join('')}<th>${grandDisc.toLocaleString()}</th><th>${grand.toLocaleString()}</th></tr></tfoot></table></div>`;
+  ${rows.map(r=>`<tr><td><strong>${escapeHtml(r.name)}</strong></td>${cols.map(c=>`<td>${fmtMoney(r.vals[c.type+'|'+c.q]||0)}</td>`).join('')}<td>${fmtMoney(r.disc)}</td><td><strong>${fmtMoney(r.total)}</strong></td></tr>`).join('')||`<tr><td colspan="${cols.length+3}" class="muted">لا توجد توزيعات فعلية خلال الفترة المحددة.</td></tr>`}</tbody><tfoot><tr><th>الإجمالي</th>${cols.map(c=>`<th>${fmtMoney(rows.reduce((x,r)=>x+Number(r.vals[c.type+'|'+c.q]||0),0))}</th>`).join('')}<th>${fmtMoney(grandDisc)}</th><th>${fmtMoney(grand)}</th></tr></tfoot></table></div>`;
 }
 function renderNotDistributedReport(){
   const body=document.getElementById('notDistributedReportBody'); if(!body)return;
@@ -979,14 +968,14 @@ function renderNotDistributedReport(){
     const byQ=[1,2,3].map(q=>alloc.filter(a=>Number(a.installmentId)===q).reduce((x,a)=>x+Number(a.amount||0),0));
     return {s,byQ,total:alloc.reduce((x,a)=>x+Number(a.amount||0),0)};
   });
-  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>عدد الطلبة غير الموزع عليهم</label><div class="big">${rows.length.toLocaleString()}</div></div><div><label>إجمالي الطلبة</label><div class="big">${D.students.filter(s=>s.active!==false).length.toLocaleString()}</div></div></div>
-  <div class="scroll" style="max-height:560px"><table><thead><tr><th>اسم الطالب</th><th>المرحلة</th><th>الموزع سابقًا ق1</th><th>الموزع سابقًا ق2</th><th>الموزع سابقًا ق3</th><th>إجمالي الموزع سابقًا</th><th>خلال الفترة</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${escapeHtml(r.s.name||'—')}</strong></td><td>${escapeHtml(r.s.grade||'—')}</td>${r.byQ.map(v=>`<td>${v.toLocaleString()}</td>`).join('')}<td>${r.total.toLocaleString()}</td><td>0 ج</td></tr>`).join('')||'<tr><td colspan="7" class="muted">كل الطلبة حصلوا على توزيع خلال الفترة المحددة.</td></tr>'}</tbody></table></div>`;
+  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>عدد الطلبة غير الموزع عليهم</label><div class="big">${rows.length.toLocaleString()}</div></div><div><label>إجمالي الطلبة النشطين</label><div class="big">${activeStudents().length.toLocaleString()}</div></div></div>
+  <div class="scroll" style="max-height:560px"><table><thead><tr><th>اسم الطالب</th><th>المرحلة</th><th>الموزع سابقًا ق1</th><th>الموزع سابقًا ق2</th><th>الموزع سابقًا ق3</th><th>إجمالي الموزع سابقًا</th><th>خلال الفترة</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${escapeHtml(r.s.name||'—')}</strong></td><td>${escapeHtml(r.s.grade||'—')}</td>${r.byQ.map(v=>`<td>${fmtMoney(v)}</td>`).join('')}<td>${fmtMoney(r.total)}</td><td>0.00 ج</td></tr>`).join('')||'<tr><td colspan="7" class="muted">كل الطلبة حصلوا على توزيع خلال الفترة المحددة.</td></tr>'}</tbody></table></div>`;
 }
 function exportPeriodDistributionExcel(){
-  const from=document.getElementById('rdf')?.value||'',to=document.getElementById('rdt')?.value||'',alloc=periodAllocations(from,to),cols=reportMatrixColumns(),map={};
-  alloc.forEach(a=>{const id=String(a.studentId),s=getStudent(id);if(!map[id])map[id]={s,vals:{},disc:0,total:0};map[id].total+=Number(a.amount||0);map[id].disc+=Number(a.discount||0);Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{const k=type+'|'+a.installmentId;map[id].vals[k]=(map[id].vals[k]||0)+Number(v||0);});});
-  const rows=Object.values(map).map(r=>[r.s?.name||'',r.s?.code||r.s?.ser||'',r.s?.grade||'',...cols.map(c=>r.vals[c.type+'|'+c.q]||0),r.disc,r.total]);
-  downloadExcelXml('تقرير_التوزيع_خلال_الفترة.xls',[{name:'التوزيع',headers:['اسم الطالب','كود الطالب','المرحلة',...cols.map(c=>c.label),'الخصم','الإجمالي'],rows}]);
+  const from=document.getElementById('rdf')?.value||'',to=document.getElementById('rdt')?.value||'';
+  const {rows,cols}=periodDistributionRows(from,to);
+  const out=rows.map(r=>[r.name,r.s?.code||r.s?.ser||'',r.s?.grade||'',...cols.map(c=>money2(r.vals[c.type+'|'+c.q]||0)),money2(r.disc),money2(r.total)]);
+  downloadExcelXml('تقرير_التوزيع_خلال_الفترة.xls',[{name:'التوزيع',headers:['اسم الطالب','كود الطالب','المرحلة',...cols.map(c=>c.label),'الخصم','الإجمالي'],rows:out}]);
 }
 function exportNotDistributedExcel(){
   const from=document.getElementById('ndf')?.value||'',to=document.getElementById('ndt')?.value||'',during=new Set(periodAllocations(from,to).map(a=>String(a.studentId)));
@@ -1062,12 +1051,7 @@ function exportDistributionReportExcel(){
 function exportStudentCollectionsExcel(){
   const id=document.getElementById('collectionStudent')?.value;
   const s=getStudent(id); if(!s){alert('اختار الطالب أولًا.');return;}
-  const rows=[];
-  (D.allocations||[]).filter(a=>String(a.studentId)===String(id)).forEach(a=>{
-    Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{
-      rows.push([a.date||'—',a.installmentName||'—',type,v,a.operationId||'—']);
-    });
-  });
+  const rows=studentCollectionRows(id);
   downloadExcelXml('تحصيلات_'+(s.name||'طالب')+'.xls',[
     {name:'بيان التحصيلات',headers:['التاريخ','القسط','نوع المصروف','المبلغ','رقم العملية'],rows}
   ]);
@@ -1078,12 +1062,7 @@ function printStudent(id){
 }
 function exportSingleStudentExcel(id){
   const s=getStudent(id); if(!s)return;
-  const rows=[];
-  (D.allocations||[]).filter(a=>String(a.studentId)===String(id)).forEach(a=>{
-    Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{
-      rows.push([a.date||'—',a.installmentName||'—',type,v,a.operationId||'—']);
-    });
-  });
+  const rows=studentCollectionRows(id);
   downloadExcelXml('بيان_تحصيل_'+(s.name||'طالب')+'.xls',[
     {name:'بيان الطالب',headers:['التاريخ','القسط','نوع المصروف','المبلغ','رقم العملية'],rows}
   ]);
