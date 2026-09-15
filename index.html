@@ -37,10 +37,6 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:8px;bord
 #students .small-btn{padding:4px 6px;font-size:11px;border-radius:6px}
 #students td:last-child{white-space:nowrap}
 #students h3{margin:2px 0 5px}
-.students-pager{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px;padding-top:7px;border-top:1px solid #e8edf2}
-.student-pager-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
-.student-page-number{font-size:12px;color:#657181;white-space:nowrap}
-.students-pager button:disabled{opacity:.45;cursor:not-allowed}
 
 .small-btn{padding:7px 9px;font-size:12px}.danger{background:#a52b2b!important;color:#fff!important}.success{background:#16733a!important;color:#fff!important}
 
@@ -247,7 +243,7 @@ th{font-weight:600}table{font-size:14px}
   <button class="small-btn danger" onclick="confirmDeleteSelected()">🗑️ حذف المحدد <span id="selCount"></span></button>
   <button class="alt small-btn" onclick="confirmDeleteAll()">🗑️ حذف جميع الطلاب</button>
 </div><div class="grid" style="grid-template-columns:minmax(220px,2fr) minmax(160px,1fr);gap:8px"><div><label>بحث</label><input id="sq" oninput="studentsView()"></div><div><label>المرحلة</label><select id="sg" onchange="studentsView()"><option value="">كل المراحل</option></select></div></div>
-<div class="scroll" style="max-height:420px"><table style="margin-top:6px"><thead><tr><th style="white-space:nowrap"><input type="checkbox" id="selAll" onchange="toggleSelectAll(this.checked)" style="width:auto;margin:0 0 0 4px;vertical-align:middle"> تحديد الكل</th><th>م</th><th>اسم الطالب</th><th>المرحلة</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="sr"></tbody></table></div><div id="studentsPager" class="students-pager"></div></div>
+<div class="scroll" style="max-height:420px"><table style="margin-top:6px"><thead><tr><th style="white-space:nowrap"><input type="checkbox" id="selAll" onchange="toggleSelectAll(this.checked)" style="width:auto;margin:0 0 0 4px;vertical-align:middle"> تحديد الكل</th><th>م</th><th>اسم الطالب</th><th>المرحلة</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="sr"></tbody></table></div></div>
 <div class="card" id="importCard"><h3>📥 استيراد بيانات الطلبة من Excel</h3>
 <div class="muted" style="margin:-2px 0 6px">تحميل النموذج ← ملء Excel ← رفع ← مراجعة ← اعتماد. الأعمدة: Student Code، Student Name، Stage، Active. لا يتم أي حفظ قبل الاعتماد، والاستيراد يخص العام الدراسي الحالي فقط.</div>
 <div class="output-actions">
@@ -428,22 +424,13 @@ function studentStatus(s){return s.active===false?'غير نشط':'نشط'}
 function studentHasDistribution(sid){
   return (D.allocations||[]).some(a=>String(a.studentId)===String(sid)&&Number(a.amount||0)>0);
 }
-var STUDENT_PAGE=1;
-var STUDENT_PAGE_SIZE=200;
-function studentsView(resetPage){
-  if(resetPage!==false) STUDENT_PAGE=1;
-  let q=(document.getElementById('sq').value||'').trim().toLowerCase(),
+function studentsView(){
+  let q=(document.getElementById('sq').value||'').toLowerCase(),
       g=document.getElementById('sg').value;
-  let filtered=D.students.filter(s=>
+  let a=D.students.filter(s=>
     (!q||String(s.name||'').toLowerCase().includes(q)||String(s.code||s.ser||'').toLowerCase().includes(q)) &&
     (!g||s.grade===g)
-  );
-  const total=filtered.length;
-  const pages=Math.max(1,Math.ceil(total/STUDENT_PAGE_SIZE));
-  if(STUDENT_PAGE>pages) STUDENT_PAGE=pages;
-  const start=(STUDENT_PAGE-1)*STUDENT_PAGE_SIZE;
-  const end=Math.min(start+STUDENT_PAGE_SIZE,total);
-  const a=filtered.slice(start,end);
+  ).slice(0,200);
 
   document.getElementById('sr').innerHTML=a.map(s=>{
     const has=studentHasDistribution(s.ser);
@@ -462,31 +449,7 @@ function studentsView(resetPage){
       </td>
     </tr>`;
   }).join('');
-
-  const pager=document.getElementById('studentsPager');
-  if(pager){
-    pager.innerHTML=`
-      <div class="muted">عرض ${total?start+1:0}–${end} من ${total.toLocaleString()} طالب</div>
-      <div class="student-pager-actions">
-        <button class="alt small-btn" onclick="studentsGoPage(1)" ${STUDENT_PAGE<=1?'disabled':''}>الأولى</button>
-        <button class="alt small-btn" onclick="studentsGoPage(${STUDENT_PAGE-1})" ${STUDENT_PAGE<=1?'disabled':''}>السابق</button>
-        <span class="student-page-number">صفحة ${STUDENT_PAGE.toLocaleString()} من ${pages.toLocaleString()}</span>
-        <button class="alt small-btn" onclick="studentsGoPage(${STUDENT_PAGE+1})" ${STUDENT_PAGE>=pages?'disabled':''}>التالي</button>
-        <button class="alt small-btn" onclick="studentsGoPage(${pages})" ${STUDENT_PAGE>=pages?'disabled':''}>الأخيرة</button>
-      </div>`;
-  }
   syncSelectAll();
-}
-function studentsGoPage(page){
-  const q=(document.getElementById('sq').value||'').trim().toLowerCase(),
-        g=document.getElementById('sg').value;
-  const total=D.students.filter(s=>
-    (!q||String(s.name||'').toLowerCase().includes(q)||String(s.code||s.ser||'').toLowerCase().includes(q)) &&
-    (!g||s.grade===g)
-  ).length;
-  const pages=Math.max(1,Math.ceil(total/STUDENT_PAGE_SIZE));
-  STUDENT_PAGE=Math.min(Math.max(1,Number(page)||1),pages);
-  studentsView(false);
 }
 function escapeHtml(v){
   return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
