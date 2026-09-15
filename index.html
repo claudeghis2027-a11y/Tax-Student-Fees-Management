@@ -355,6 +355,13 @@ th{font-weight:600}table{font-size:14px}
   </div>
 </section>
 </div></main></div>
+<div id="loadingOverlay" class="modal">
+  <div class="modal-box" style="width:min(420px,100%);text-align:center">
+    <h3 id="loadingTitle" style="margin:0 0 8px">⏳ جارٍ تحميل البيانات من الخادم...</h3>
+    <div id="loadingText" class="muted">يتم الآن جلب الطلبة والمراحل وإعدادات العام. لا تظهر أي أرقام قبل اكتمال التحميل.</div>
+    <div class="output-actions hidden" id="loadingActions" style="justify-content:center;margin-top:12px"><button onclick="apiLoad()">🔄 إعادة المحاولة</button></div>
+  </div>
+</div>
 <div id="deleteModal" class="modal hidden" onclick="if(event.target===this)closeDeleteModal()">
   <div class="modal-box" style="width:min(520px,100%)">
     <div class="modal-head"><h3 style="margin:0">🗑️ تأكيد الحذف النهائي</h3><button class="alt small-btn" onclick="closeDeleteModal()">✖</button></div>
@@ -406,7 +413,34 @@ function describeNonJsonResponse(r,text){
 function applyState(state){D=state;if(!Array.isArray(D.discounts))D.discounts=[];ensureStudentData();populateStageFilter();}
 function populateStageFilter(){const el=document.getElementById('sg');if(!el)return;const cur=el.value;el.innerHTML='<option value="">كل المراحل</option>'+(D.stages||[]).map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');el.value=(D.stages||[]).includes(cur)?cur:'';}
 function apiError(err){alert('خطأ في الاتصال بالخادم: '+(err.message||err));}
-async function apiLoad(){try{applyState(await api('load'));show(document.querySelector('nav button[data-module].active')?.getAttribute('data-module')||'home');}catch(err){apiError(err);}}
+/* Initial load: loading state (no fake zeros) + bounded automatic retry (3 attempts) + explicit error state with manual retry. */
+const INITIAL_LOAD_RETRIES=3, INITIAL_LOAD_DELAYS_MS=[1500,3000];
+let APP_LOADED=false;
+function setLoadingState(mode,msg){
+  const ov=document.getElementById('loadingOverlay'),t=document.getElementById('loadingTitle'),x=document.getElementById('loadingText'),a=document.getElementById('loadingActions');
+  if(!ov)return;
+  if(mode==='loaded'){ov.classList.add('hidden');return;}
+  ov.classList.remove('hidden');
+  if(mode==='loading'){t.textContent='⏳ جارٍ تحميل البيانات من الخادم...';x.textContent=msg||'يتم الآن جلب الطلبة والمراحل وإعدادات العام. لا تظهر أي أرقام قبل اكتمال التحميل.';a.classList.add('hidden');}
+  else{t.textContent='⚠️ تعذر الاتصال بالخادم';x.textContent=msg||'';a.classList.remove('hidden');}
+}
+async function apiLoad(){
+  APP_LOADED=false;
+  for(let attempt=1;attempt<=INITIAL_LOAD_RETRIES;attempt++){
+    setLoadingState('loading',attempt>1?`محاولة ${attempt} من ${INITIAL_LOAD_RETRIES}...`:undefined);
+    try{
+      applyState(await api('load'));
+      APP_LOADED=true;
+      show(document.querySelector('nav button[data-module].active')?.getAttribute('data-module')||'home');
+      setLoadingState('loaded');
+      return true;
+    }catch(err){
+      if(attempt<INITIAL_LOAD_RETRIES){await new Promise(r=>setTimeout(r,INITIAL_LOAD_DELAYS_MS[attempt-1]||3000));continue;}
+      setLoadingState('error','فشل تحميل البيانات بعد '+INITIAL_LOAD_RETRIES+' محاولات: '+(err.message||err)+' — لن تُعرض أي بيانات حتى ينجح الاتصال.');
+      return false;
+    }
+  }
+}
 function distributionView(){
   const today=document.getElementById('dd')?.value||'';
   const idx=(typeof installmentForDate==='function')?installmentForDate(today):0;
