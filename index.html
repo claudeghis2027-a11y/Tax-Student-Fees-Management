@@ -243,7 +243,8 @@ th{font-weight:600}table{font-size:14px}
   <button class="small-btn danger" onclick="confirmDeleteSelected()">🗑️ حذف المحدد <span id="selCount"></span></button>
   <button class="alt small-btn" onclick="confirmDeleteAll()">🗑️ حذف جميع الطلاب</button>
 </div><div class="grid" style="grid-template-columns:minmax(220px,2fr) minmax(160px,1fr);gap:8px"><div><label>بحث</label><input id="sq" oninput="studentsView()"></div><div><label>المرحلة</label><select id="sg" onchange="studentsView()"><option value="">كل المراحل</option></select></div></div>
-<div class="scroll" style="max-height:420px"><table style="margin-top:6px"><thead><tr><th style="white-space:nowrap"><input type="checkbox" id="selAll" onchange="toggleSelectAll(this.checked)" style="width:auto;margin:0 0 0 4px;vertical-align:middle"> تحديد الكل</th><th>م</th><th>اسم الطالب</th><th>المرحلة</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="sr"></tbody></table></div></div>
+<div class="scroll" style="max-height:420px"><table style="margin-top:6px"><thead><tr><th style="white-space:nowrap"><input type="checkbox" id="selAll" onchange="toggleSelectAll(this.checked)" style="width:auto;margin:0 0 0 4px;vertical-align:middle"> تحديد الكل</th><th>م</th><th>اسم الطالب</th><th>المرحلة</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="sr"></tbody></table></div>
+<div id="studentsPager" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px"></div></div>
 <div class="card" id="importCard"><h3>📥 استيراد بيانات الطلبة من Excel</h3>
 <div class="muted" style="margin:-2px 0 6px">تحميل النموذج ← ملء Excel ← رفع ← مراجعة ← اعتماد. الأعمدة: Student Code، Student Name، Stage، Active. لا يتم أي حفظ قبل الاعتماد، والاستيراد يخص العام الدراسي الحالي فقط.</div>
 <div class="output-actions">
@@ -364,7 +365,24 @@ th{font-weight:600}table{font-size:14px}
 <script>
 const API_URL='https://script.google.com/macros/s/AKfycby9ZiaK8NPUjEQtkNSvxfCnALkL0aKo80lxX12fj5uz7d3fTioMfbM7Qoh8rqg826Hu/exec'; // Google Apps Script Web App URL
 let D={academicYear:'',yearStart:'',yearEnd:'',installments:[],rules:[],stages:[],stageFees:{},students:[],allocations:[],operations:[]};
-async function api(action,payload){const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload:payload||{}})});const j=await r.json();if(!j.ok)throw new Error(j.error||'API error');return j.data;}
+async function api(action,payload){
+  const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload:payload||{}})});
+  const text=await r.text(); let j;
+  try{ j=JSON.parse(text); }
+  catch(e){ throw new Error(describeNonJsonResponse(r,text)); }
+  if(!j.ok)throw new Error(j.error||'API error');
+  return j.data;
+}
+function describeNonJsonResponse(r,text){
+  const t=String(text||''), title=(t.match(/<title[^>]*>([^<]*)<\/title>/i)||[])[1]||'', low=(title+' '+t.slice(0,600)).toLowerCase();
+  let hint='';
+  if(/script function not found/.test(low)) hint='الـDeployment المنشور لا يحتوي على doPost — الكود أُلصق بعد النشر. في Apps Script: Deploy ← Manage deployments ← ✎ ← Version: New version ← Deploy (نفس الرابط يبقى).';
+  else if(/sign in|accounts\.google|login/.test(low)) hint='الـWeb App يطلب تسجيل دخول — في Manage deployments اضبط Who has access = Anyone و Execute as = Me ثم New version.';
+  else if(/page not found|not found/.test(low)) hint='الرابط لا يشير إلى Deployment نشط — تأكد أن الـDeployment لم يُحذف أو يُؤرشف.';
+  else if(/authorization|permission|approve/.test(low)) hint='السكربت يحتاج تفويضًا — شغّل setupSheets() مرة من محرر Apps Script ووافق على الصلاحيات ثم أعد النشر بـNew version.';
+  else if(/error|exception/.test(low)) hint='الخادم أعاد صفحة خطأ من Apps Script — راجع Executions في محرر Apps Script لمعرفة سبب الخطأ.';
+  return 'الخادم أعاد صفحة HTML بدلًا من JSON (HTTP '+r.status+(title?' — '+title.trim():'')+'). '+hint;
+}
 function applyState(state){D=state;ensureStudentData();populateStageFilter();}
 function populateStageFilter(){const el=document.getElementById('sg');if(!el)return;const cur=el.value;el.innerHTML='<option value="">كل المراحل</option>'+(D.stages||[]).map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');el.value=(D.stages||[]).includes(cur)?cur:'';}
 function apiError(err){alert('خطأ في الاتصال بالخادم: '+(err.message||err));}
@@ -413,7 +431,7 @@ function home(){document.getElementById('hy').textContent=D.academicYear;documen
 function settings(){
 document.getElementById('ay').value=D.academicYear;document.getElementById('ys').value=D.yearStart;document.getElementById('ye').value=D.yearEnd;
 document.getElementById('inst').innerHTML=D.installments.map(i=>`<tr><td>${i.name}</td><td><input id="f${i.id}" type="date" value="${i.from}"></td><td><input id="t${i.id}" type="date" value="${i.to}"></td><td><input id="x${i.id}" type="number" value="${i.target}"></td><td>${(i.distributed||0).toLocaleString()}</td><td>${(i.carry||0).toLocaleString()}</td></tr>`).join('');
-document.getElementById('rules').innerHTML=D.rules.map((r,n)=>`<tr><td>${r.name}</td><td><input id="a${n}" type="number" value="${r.q1}"></td><td><input id="b${n}" type="number" value="${r.q2}"></td><td><input id="c${n}" type="number" value="${r.q3}"></td></tr>`).join('');
+document.getElementById('rules').innerHTML=D.rules.map((r,n)=>`<tr><td>${r.name}</td><td><span style="display:flex;align-items:center;gap:2px"><input id="a${n}" type="number" value="${r.q1}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="b${n}" type="number" value="${r.q2}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="c${n}" type="number" value="${r.q3}"><b>%</b></span></td></tr>`).join('');
 document.getElementById('fees').innerHTML=Object.entries(D.stageFees).map(([g,f])=>`<tr><td>${g}</td>${['تعليم','نشاط','باص','كتب الوزارة','كتب خارجية'].map(k=>`<td><input id="v_${g}_${k}" type="number" value="${f[k]||0}"></td>`).join('')}</tr>`).join('');
 }
 function saveYear(){api('saveYear',{academicYear:document.getElementById('ay').value,yearStart:document.getElementById('ys').value,yearEnd:document.getElementById('ye').value}).then(st=>{applyState(st);alert('تم حفظ إعدادات العام')}).catch(apiError)}
@@ -424,13 +442,28 @@ function studentStatus(s){return s.active===false?'غير نشط':'نشط'}
 function studentHasDistribution(sid){
   return (D.allocations||[]).some(a=>String(a.studentId)===String(sid)&&Number(a.amount||0)>0);
 }
-function studentsView(){
+const STUDENTS_PAGE_SIZE=200; let STUDENTS_PAGE=1;
+function studentsPage(n){STUDENTS_PAGE=n;studentsView(true);}
+function studentsView(keepPage){
+  if(!keepPage)STUDENTS_PAGE=1;
   let q=(document.getElementById('sq').value||'').toLowerCase(),
       g=document.getElementById('sg').value;
-  let a=D.students.filter(s=>
+  let all=D.students.filter(s=>
     (!q||String(s.name||'').toLowerCase().includes(q)||String(s.code||s.ser||'').toLowerCase().includes(q)) &&
     (!g||s.grade===g)
-  ).slice(0,200);
+  );
+  const pages=Math.max(1,Math.ceil(all.length/STUDENTS_PAGE_SIZE));
+  if(STUDENTS_PAGE>pages)STUDENTS_PAGE=pages; if(STUDENTS_PAGE<1)STUDENTS_PAGE=1;
+  let a=all.slice((STUDENTS_PAGE-1)*STUDENTS_PAGE_SIZE,STUDENTS_PAGE*STUDENTS_PAGE_SIZE);
+  const pager=document.getElementById('studentsPager');
+  if(pager){
+    const from=all.length?(STUDENTS_PAGE-1)*STUDENTS_PAGE_SIZE+1:0, to=Math.min(all.length,STUDENTS_PAGE*STUDENTS_PAGE_SIZE);
+    pager.innerHTML=`<span class="muted">عرض ${from.toLocaleString()}–${to.toLocaleString()} من ${all.length.toLocaleString()} طالب — صفحة ${STUDENTS_PAGE} من ${pages}</span>`+
+      `<span class="output-actions"><button class="alt small-btn" onclick="studentsPage(1)" ${STUDENTS_PAGE<=1?'disabled':''}>⏮ الأولى</button>`+
+      `<button class="alt small-btn" onclick="studentsPage(${STUDENTS_PAGE-1})" ${STUDENTS_PAGE<=1?'disabled':''}>◀ السابق</button>`+
+      `<button class="alt small-btn" onclick="studentsPage(${STUDENTS_PAGE+1})" ${STUDENTS_PAGE>=pages?'disabled':''}>التالي ▶</button>`+
+      `<button class="alt small-btn" onclick="studentsPage(${pages})" ${STUDENTS_PAGE>=pages?'disabled':''}>الأخيرة ⏭</button></span>`;
+  }
 
   document.getElementById('sr').innerHTML=a.map(s=>{
     const has=studentHasDistribution(s.ser);
