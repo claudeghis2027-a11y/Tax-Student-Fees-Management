@@ -1,0 +1,1310 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>نظام تحصيلات الطلبة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+body{margin:0;font-family:Arial;background:#f4f7fa;color:#17212b}header{background:#123166;color:#fff;padding:18px 22px}
+main{max-width:1250px;margin:18px auto;padding:0 14px}nav{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:15px}
+button{border:0;border-radius:8px;padding:10px 14px;background:#123166;color:#fff;cursor:pointer}.alt{background:#e8eef5;color:#123166}
+.card{background:#fff;border-radius:12px;padding:17px;margin-bottom:14px;box-shadow:0 2px 9px #0001}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:11px}
+input,select{width:100%;padding:9px;border:1px solid #ccd5df;border-radius:8px;box-sizing:border-box}label{font-size:12px;color:#657181;display:block;margin-bottom:5px}
+table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:8px;border-bottom:1px solid #e8edf2;text-align:right}th{background:#f5f7f9}.big{font-size:24px;font-weight:bold}
+.muted{color:#657181;font-size:13px}.ok{color:#16733a;font-weight:bold}.hidden{display:none}.scroll{overflow:auto;max-height:480px}
+
+.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;z-index:9999;padding:14px;box-sizing:border-box}
+.modal.hidden{display:none}.modal-box{background:#fff;width:min(850px,100%);max-height:90vh;overflow:auto;border-radius:14px;padding:18px;box-shadow:0 12px 40px #0004}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-bottom:1px solid #e8edf2;padding-bottom:12px;margin-bottom:12px}
+.status-active{color:#16733a;font-weight:bold}.status-inactive{color:#9a4b00;font-weight:bold}
+.student-name-btn{
+  display:inline!important;
+  width:auto!important;
+  margin:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  color:#123166!important;
+  padding:0!important;
+  font-weight:bold;
+  text-decoration:underline;
+  cursor:pointer;
+  line-height:1.25;
+}
+#students>.card{padding:11px;margin-bottom:10px}
+#students .grid{gap:7px}
+#students .scroll{max-height:420px}
+#students table{margin-top:5px;font-size:13px}
+#students th,#students td{padding:5px 6px;line-height:1.25}
+#students .small-btn{padding:4px 6px;font-size:11px;border-radius:6px}
+#students td:last-child{white-space:nowrap}
+#students h3{margin:2px 0 5px}
+
+.small-btn{padding:7px 9px;font-size:12px}.danger{background:#a52b2b!important;color:#fff!important}.success{background:#16733a!important;color:#fff!important}
+
+.report-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin-top:10px}
+.report-card{display:flex;align-items:center;gap:12px;text-align:right;background:#f4f7fa;color:#123166;border:1px solid #dfe6ee;padding:13px;border-radius:10px}
+.report-card:hover{background:#eaf0f6}
+.report-card strong{display:block;font-size:16px}.report-card small{display:block;color:#657181;margin-top:4px;font-size:12px;line-height:1.4}
+.report-icon{font-size:25px}.report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}.export-bar{display:flex;gap:5px;flex-wrap:wrap}
+#printFrame{display:none}
+@media print{
+  body *{visibility:hidden!important}
+  #printFrame,#printFrame *{visibility:visible!important}
+  #printFrame{display:block!important;position:absolute;left:0;top:0;width:100%;background:#fff;padding:20px;box-sizing:border-box}
+  @page{size:A4;margin:12mm}
+}
+@media(max-width:600px){
+  .report-cards{grid-template-columns:1fr}
+  .report-card{padding:10px}
+}
+
+/* Unified Print / PDF / Excel toolbar */
+.export-bar,
+.output-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:6px;
+  flex-wrap:wrap;
+  margin:0;
+}
+.output-actions .small-btn,
+.export-bar .small-btn{
+  min-height:34px;
+  white-space:nowrap;
+}
+.output-actions .btn-print,
+.export-bar .btn-print{background:#f4f7fa;color:#123166}
+.output-actions .btn-pdf,
+.export-bar .btn-pdf{background:#f4f7fa;color:#8b1e1e}
+.output-actions .btn-excel,
+.export-bar .btn-excel{background:#f4f7fa;color:#176b3a}
+@media(max-width:600px){
+  .export-bar,.output-actions{gap:5px}
+  .output-actions .small-btn,.export-bar .small-btn{padding:6px 8px;font-size:11px}
+}
+
+/* ===== Application Shell — aligned to the supplied GHIS EXP UI ===== */
+:root{--navy:#123166;--bg:#f4f7fa;--text:#17212b;--line:#d9e1e8;--muted:#667788;--card:#fff}
+*{box-sizing:border-box}
+html{overflow-x:auto}
+body{margin:0;font-family:Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);direction:rtl;min-height:100vh;overflow-x:auto}
+.hidden{display:none!important}
+.shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+.sidebar{background:#fff;border-left:1px solid var(--line);padding:16px;position:sticky;top:0;height:100vh}
+.brand{display:flex;gap:9px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:15px;margin-bottom:12px}
+.brand .logo{margin:0;width:40px;height:40px;background:var(--navy);color:#fff;border-radius:12px;display:grid;place-items:center;font-weight:bold}
+.brand b{color:var(--navy);display:block}.brand small{display:block;color:var(--muted)}
+.nav{display:grid;gap:4px}.nav button{border:0;background:none;text-align:right;padding:10px;border-radius:8px;cursor:pointer;color:#405a73;font-weight:bold;font-family:inherit;width:100%}
+.nav button.active,.nav button:hover{background:#edf3f8;color:var(--navy)}
+.sidebar-foot{position:absolute;bottom:15px;right:16px;left:16px;display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px}
+.sidebar-foot b{color:var(--navy)}
+.main{min-width:0}
+.top{height:76px;background:#fff;border-bottom:1px solid var(--line);padding:0 22px;display:flex;align-items:center;justify-content:space-between}
+.top h1{margin:0;color:var(--navy);font-size:20px}.top-sub{font-size:12px;color:var(--muted)}
+.top-status{font-size:12px;color:#176b3a;background:#eef8f1;border:1px solid #d7eadc;border-radius:20px;padding:7px 12px}
+.content{padding:20px;max-width:1600px;margin:auto}
+.content>section{max-width:1400px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 5px 18px #12316612;padding:20px;margin-bottom:14px}
+.title{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+@media(max-width:900px){
+  .shell{grid-template-columns:220px minmax(520px,1fr);min-width:740px;align-items:start}
+  .sidebar{height:100vh;min-height:100vh;position:sticky;top:0;padding:14px}
+  .sidebar-foot{position:absolute;bottom:14px;right:14px;left:14px;margin:0;padding:0;border:0}
+  .content{padding:12px}.top{height:68px;padding:0 14px}.top h1{font-size:18px}
+}
+@media(max-width:600px){
+  .sidebar{padding:12px}.brand{margin-bottom:10px}
+  .nav{display:grid;grid-template-columns:1fr;gap:4px}
+  .nav button{text-align:right;padding:9px 8px;font-size:12px}
+  .content{padding:10px}.top{padding:0 12px}.top-sub{display:none}.top-status{font-size:11px;padding:6px 9px}.card{padding:14px;border-radius:12px}
+}
+
+/* ===== Responsive Desktop (min-width:901px only) — all mobile/tablet-portrait rules (≤900px) above are untouched ===== */
+@media(min-width:901px){
+  /* the legacy `main{margin:18px auto;max-width:1250px}` rule turns the grid item into a shrink-to-fit column; neutralize it on desktop */
+  .main{margin:0;max-width:none;padding:0;width:100%;min-width:0}
+  .content{padding:22px 26px;max-width:1500px}
+  .content>section{max-width:1400px}
+  .grid{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+  .report-cards{grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}
+  .scroll{max-height:60vh}#students .scroll{max-height:60vh}
+  .modal-box{width:min(920px,100%)}
+}
+@media(min-width:1366px){
+  .shell{grid-template-columns:270px 1fr}
+  .sidebar{padding:18px}.brand b{font-size:15px}.brand small{font-size:12px}
+  .nav button{padding:11px 12px;font-size:14px}
+  .top{height:80px;padding:0 28px}.top h1{font-size:22px}.top-sub{font-size:13px}.top-status{font-size:13px;padding:8px 14px}
+  .content{padding:26px 36px;max-width:1560px}
+  .content>section{max-width:1460px}
+  .card{padding:22px}#students>.card{padding:14px}
+  .title{margin-bottom:16px}
+  .grid{grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+  input,select{padding:10px 11px;font-size:14px}label{font-size:13px}
+  button{padding:11px 16px;font-size:14px}.small-btn{padding:8px 11px;font-size:13px}
+  table{font-size:14px}th,td{padding:10px}
+  #students table{font-size:14px}#students th,#students td{padding:7px 8px}#students .small-btn{padding:5px 8px;font-size:12px}
+  .big{font-size:28px}.muted{font-size:14px}
+  .report-card{padding:16px}.report-card strong{font-size:17px}.report-card small{font-size:13px}.report-icon{font-size:28px}
+  .scroll{max-height:62vh}#students .scroll{max-height:62vh}
+  .modal-box{width:min(1000px,100%);padding:22px}
+}
+@media(min-width:1600px){
+  .shell{grid-template-columns:290px 1fr}
+  .content{padding:30px 44px;max-width:1700px}
+  .content>section{max-width:1600px}
+  .grid{grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+  .big{font-size:30px}
+  .modal-box{width:min(1080px,100%)}
+}
+@media(min-width:1920px){
+  body{font-size:17px}
+  .shell{grid-template-columns:310px 1fr}
+  .sidebar{padding:20px}.brand .logo{width:44px;height:44px}.brand b{font-size:16px}.brand small{font-size:13px}
+  .nav button{padding:12px 14px;font-size:15px}.sidebar-foot{font-size:13px}
+  .top{height:86px;padding:0 34px}.top h1{font-size:24px}.top-sub{font-size:14px}.top-status{font-size:14px}
+  .content{padding:34px 56px;max-width:1800px}
+  .content>section{max-width:1700px}
+  .card{padding:26px;border-radius:16px;margin-bottom:18px}#students>.card{padding:16px;margin-bottom:14px}
+  .grid{grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:20px}
+  input,select{padding:11px 12px;font-size:15px}label{font-size:14px}
+  button{padding:12px 18px;font-size:15px}.small-btn{padding:9px 12px;font-size:14px}
+  table{font-size:15px}th,td{padding:11px 12px}
+  #students table{font-size:15px}#students th,#students td{padding:8px 10px}#students .small-btn{padding:6px 9px;font-size:13px}
+  .big{font-size:32px}.muted{font-size:15px}
+  .report-cards{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .report-card{padding:18px}.report-card strong{font-size:18px}.report-card small{font-size:14px}.report-icon{font-size:30px}
+  .scroll{max-height:66vh}#students .scroll{max-height:66vh}
+  .modal-box{width:min(1160px,100%);padding:26px}
+}
+@media(min-width:2400px){
+  body{font-size:18px}
+  .shell{grid-template-columns:340px 1fr}
+  .nav button{padding:13px 16px;font-size:16px}
+  .top{height:92px;padding:0 40px}.top h1{font-size:26px}
+  .content{padding:40px 64px;max-width:2000px}
+  .content>section{max-width:1880px}
+  .grid{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px}
+  input,select{padding:12px 13px;font-size:16px}label{font-size:15px}
+  button{padding:13px 20px;font-size:16px}.small-btn{padding:10px 13px;font-size:15px}
+  table{font-size:16px}th,td{padding:12px 14px}
+  #students table{font-size:16px}#students th,#students td{padding:9px 11px}#students .small-btn{padding:7px 10px;font-size:14px}
+  .big{font-size:34px}.muted{font-size:16px}
+  .report-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .scroll{max-height:70vh}#students .scroll{max-height:70vh}
+  .modal-box{width:min(1280px,100%)}
+}
+
+/* ===== Typography (font + weights + simple responsive sizes) — colors, layout and order untouched ===== */
+:root{--font:"IBM Plex Sans Arabic","Segoe UI",Tahoma,Arial,sans-serif}
+html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body{font-family:var(--font);font-size:15px;line-height:1.6}
+button,input,select,textarea{font-family:inherit;line-height:1.4}
+input,select{font-size:14px;font-weight:400}
+label{font-size:12.5px;font-weight:500}
+.brand b{font-weight:700;font-size:15px}.brand small{font-weight:400}
+.nav button{font-weight:600;font-size:14px}
+.top h1{font-weight:700;font-size:20px;line-height:1.3}.top-sub{font-weight:400}.top-status{font-weight:500}
+h3{font-weight:700;font-size:17px;line-height:1.35}h4{font-weight:600}
+button{font-weight:600;font-size:14px}.small-btn{font-weight:500;font-size:12.5px}
+th{font-weight:600}table{font-size:14px}
+.big{font-weight:700;line-height:1.25}
+.muted{font-size:13px}
+.report-card strong{font-weight:700}.report-card small{font-weight:400}
+.big,td,th,.top-status,input[type=number],input[type=date],.sidebar-foot{font-variant-numeric:tabular-nums}
+@media(max-width:600px){body{font-size:14px}.top h1{font-size:18px}h3{font-size:16px}button{font-size:13px}table{font-size:13px}}
+@media(min-width:1366px){body{font-size:15px}.top h1{font-size:22px}h3{font-size:18px}input,select{font-size:14px}button{font-size:14px}.small-btn{font-size:13px}table{font-size:14px}#students table{font-size:14px}label{font-size:13px}.muted{font-size:13.5px}}
+@media(min-width:1920px){body{font-size:16px}.top h1{font-size:24px}h3{font-size:19px}input,select{font-size:15px}button{font-size:15px}.small-btn{font-size:13.5px}table{font-size:15px}#students table{font-size:15px}label{font-size:13.5px}.muted{font-size:14.5px}.nav button{font-size:15px}}
+@media(min-width:2400px){body{font-size:17px}.top h1{font-size:26px}h3{font-size:20px}input,select{font-size:16px}button{font-size:16px}.small-btn{font-size:14.5px}table{font-size:16px}#students table{font-size:16px}label{font-size:14.5px}.muted{font-size:15.5px}.nav button{font-size:16px}}
+</style></head><body>
+<div class="shell">
+<aside class="sidebar"><div class="brand"><div class="logo">💰</div><div><b>تحصيلات الطلبة</b><small>إدارة الرسوم والتحصيل</small></div></div><nav class="nav"><button type="button" onclick="show('home')" data-module="home">🏠 الرئيسية</button><button type="button" onclick="show('settings')" data-module="settings">⚙️ إعدادات العام</button><button type="button" onclick="show('students')" data-module="students">👥 بيانات الطلبة</button><button type="button" onclick="show('dist')" data-module="dist">📦 توزيع التحصيل</button><button type="button" onclick="show('reports')" data-module="reports">📈 التقارير</button></nav><div class="sidebar-foot"><span>العام:</span> <b id="sideYear">2026/2027</b></div></aside>
+<main class="main"><header class="top"><div><h1 id="moduleTitle">الرئيسية</h1><div class="top-sub">إدارة الرسوم والتحصيل والتوزيع</div></div><div class="top-status">النظام جاهز</div></header><div class="content">
+
+<section id="home" class="card"><h3>ملخص السنة</h3><div class="grid">
+<div><label>السنة</label><div class="big" id="hy"></div></div><div><label>عدد الطلبة</label><div class="big">1,414</div></div>
+<div><label>عدد المراحل</label><div class="big">28</div></div><div><label>إجمالي المستهدفات</label><div class="big" id="ht"></div></div></div></section>
+
+<section id="settings" class="hidden">
+<div class="card"><h3>⚙️ إعدادات العام — قابلة للتعديل</h3><div class="grid">
+<div><label>السنة الدراسية</label><input id="ay"></div><div><label>بداية السنة</label><input id="ys" type="date"></div><div><label>نهاية السنة</label><input id="ye" type="date"></div></div><button onclick="saveYear()">💾 حفظ</button></div>
+<div class="card"><h3>📅 الأقساط والمستهدفات</h3><table><thead><tr><th>القسط</th><th>من</th><th>إلى</th><th>المستهدف</th><th>الموزع</th><th>المرحل</th></tr></thead><tbody id="inst"></tbody></table><button onclick="saveInst()">💾 حفظ</button></div>
+<div class="card"><h3>💰 نسب السداد</h3><table><thead><tr><th>المصروف</th><th>الأول</th><th>الثاني</th><th>الثالث</th></tr></thead><tbody id="rules"></tbody></table><button onclick="saveRules()">💾 حفظ</button></div>
+<div class="card"><h3>🏫 لائحة المصروفات لكل مرحلة</h3><p class="muted">القيم دي هي أساس مستحقات كل طالب داخل المرحلة، وقابلة للتعديل.</p>
+<div class="scroll"><table><thead><tr><th>المرحلة</th><th>تعليم</th><th>نشاط</th><th>باص</th><th>كتب الوزارة</th><th>كتب خارجية</th></tr></thead><tbody id="fees"></tbody></table></div><button onclick="saveFees()">💾 حفظ</button></div>
+</section>
+
+<section id="students" class="hidden"><div class="card"><h3>👨‍🎓 بيانات الطلبة</h3>
+<div class="muted" style="margin:-2px 0 6px">اضغط على اسم الطالب لعرض المبالغ الموزعة وتعديل بياناته.</div>
+<div class="output-actions" style="margin-bottom:6px">
+  <button class="alt small-btn btn-print" onclick="printReport('students')">🖨️ طباعة</button>
+  <button class="alt small-btn btn-pdf" onclick="downloadReportPDF('students','بيانات_الطلبة')">📄 تحميل PDF</button>
+  <button class="alt small-btn btn-excel" onclick="exportStudentsExcel()">📥 تحميل Excel</button>
+  <button class="small-btn danger" onclick="confirmDeleteSelected()">🗑️ حذف المحدد <span id="selCount"></span></button>
+  <button class="alt small-btn" onclick="confirmDeleteAll()">🗑️ حذف جميع الطلاب</button>
+</div><div class="grid" style="grid-template-columns:minmax(220px,2fr) minmax(160px,1fr);gap:8px"><div><label>بحث</label><input id="sq" oninput="studentsView()"></div><div><label>المرحلة</label><select id="sg" onchange="studentsView()"><option value="">كل المراحل</option></select></div></div>
+<div class="scroll" style="max-height:420px"><table style="margin-top:6px"><thead><tr><th style="white-space:nowrap"><input type="checkbox" id="selAll" onchange="toggleSelectAll(this.checked)" style="width:auto;margin:0 0 0 4px;vertical-align:middle"> تحديد الكل</th><th>م</th><th>اسم الطالب</th><th>المرحلة</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="sr"></tbody></table></div></div>
+<div class="card" id="importCard"><h3>📥 استيراد بيانات الطلبة من Excel</h3>
+<div class="muted" style="margin:-2px 0 6px">تحميل النموذج ← ملء Excel ← رفع ← مراجعة ← اعتماد. الأعمدة: Student Code، Student Name، Stage، Active. لا يتم أي حفظ قبل الاعتماد، والاستيراد يخص العام الدراسي الحالي فقط.</div>
+<div class="output-actions">
+  <button class="alt small-btn btn-excel" onclick="downloadStudentTemplate()">📥 تحميل نموذج الطلبة</button>
+  <input type="file" id="importFile" accept=".xlsx" class="hidden" onchange="handleImportFile(this)">
+  <button class="alt small-btn" onclick="document.getElementById('importFile').click()">📤 رفع ملف الطلبة</button>
+</div>
+<div id="importOutput" style="margin-top:8px"></div>
+</div></section>
+
+
+<div id="studentModal" class="modal hidden" onclick="if(event.target===this)closeStudentModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div>
+        <h3 id="studentModalTitle" style="margin:0">بيانات الطالب</h3>
+        <div id="studentModalMeta" class="muted" style="margin-top:4px"></div>
+      </div>
+      <button class="alt" onclick="closeStudentModal()">✕</button>
+    </div>
+    <div id="studentModalBody"></div>
+  </div>
+</div>
+<section id="dist" class="hidden"><div class="card"><h3>🧮 توزيع التحصيل</h3>
+<div class="card" id="distributionSummaryCard" style="margin-top:12px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+    <h4 style="margin:0">📊 ملخص الحالة</h4>
+    <span id="distSummaryPeriod" class="muted">القسط الحالي: —</span>
+  </div>
+  <div class="grid" style="margin-top:10px">
+    <div><label>المستهدف</label><div class="big" id="sumInstallmentTarget">0 ج</div></div>
+    <div><label>تم توزيعه</label><div class="big" id="sumInstallmentDistributed">0 ج</div></div>
+    <div><label>المتبقي للقسط</label><div class="big" id="sumInstallmentRemaining">0 ج</div></div>
+    <div><label>نسبة التنفيذ</label><div class="big" id="sumInstallmentPercent">0%</div></div>
+  </div>
+  <div style="margin-top:12px">
+    <div style="font-weight:bold;margin-bottom:6px">المتبقي للوصول إلى الـ Budget السنوي</div>
+    <div style="overflow:auto">
+      <table>
+        <thead><tr><th>نوع المصروف</th><th>Budget السنوي</th><th>تم توزيعه</th><th>المتبقي</th></tr></thead>
+        <tbody id="distributionBudgetBody">
+          <tr><td colspan="4" class="muted">لم تتم أي عملية توزيع بعد.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="grid" style="margin-top:10px">
+    <div><label>إجمالي الـ Budget السنوي</label><div class="big" id="sumAnnualBudget">0 ج</div></div>
+    <div><label>إجمالي الموزع</label><div class="big" id="sumAnnualDistributed">0 ج</div></div>
+    <div><label>المتبقي للـ Budget</label><div class="big" id="sumAnnualRemaining">0 ج</div></div>
+  </div>
+</div>
+<div class="grid">
+<div><label>تاريخ التحصيل</label><input id="dd" type="date" value="2026-10-15"></div><div><label>المبلغ</label><input id="da" type="number" value="100000"></div>
+<div><label>عدد مستفيدي الخصم</label><input id="dc" type="number" value="100"></div><div><label>إجمالي الخصومات للقسط</label><input id="dt" type="number" value="50000"></div>
+</div><p class="muted">إذا تجاوز المبلغ احتياج القسط الحالي، ينتقل الفرق تلقائيًا للقسط التالي.</p><button onclick="distribute()">▶ تنفيذ التوزيع</button><div id="distOutput"></div></div></section>
+
+<section id="reports" class="hidden">
+  <div class="card">
+    <h3>📊 التقارير</h3>
+    <div class="muted">كل التقارير متاحة مع الحفاظ على المبالغ الموزعة فعليًا وسجل العمليات.</div>
+    <div class="report-cards">
+      <button class="report-card" onclick="openReport('distributionSummary')"><span class="report-icon">📊</span><span><strong>ملخص التوزيع</strong><small>المستهدف والموزع والمتبقي حسب القسط ونوع المصروف.</small></span></button>
+      <button class="report-card" onclick="openReport('studentCollections')"><span class="report-icon">💰</span><span><strong>تحصيلات الطلبة</strong><small>اختيار طالب وعرض كل المبالغ التي تم توزيعها عليه بالتفصيل.</small></span></button>
+      <button class="report-card" onclick="openReport('distributionPeriod')"><span class="report-icon">📊</span><span><strong>تقرير التوزيع خلال فترة</strong><small>المبالغ الفعلية: اتوزعت على مين وراحت فين بالضبط.</small></span></button>
+      <button class="report-card" onclick="openReport('notDistributed')"><span class="report-icon">👥</span><span><strong>الطلبة غير الموزع عليهم</strong><small>طلبة لم يحصلوا على أي توزيع خلال الفترة المحددة مع موقفهم السابق.</small></span></button>
+    </div>
+  </div>
+
+  <div id="reportDistributionSummary" class="card hidden">
+    <div class="report-head"><div><h3 style="margin:0">📊 ملخص التوزيع</h3><div class="muted">المستهدف والموزع والمتبقي حسب القسط ونوع المصروف.</div></div><div class="output-actions"><button class="alt small-btn btn-print" onclick="printReport('reportDistributionSummary')">🖨️ طباعة</button><button class="alt small-btn btn-pdf" onclick="downloadReportPDF('reportDistributionSummary','ملخص_التوزيع')">📄 تحميل PDF</button><button class="alt small-btn btn-excel" onclick="exportDistributionSummaryExcel()">📥 تحميل Excel</button></div></div>
+    <div class="grid">
+      <div><label>من تاريخ</label><input id="rsf" type="date" onchange="renderDistributionSummaryReport()"></div>
+      <div><label>إلى تاريخ</label><input id="rst" type="date" onchange="renderDistributionSummaryReport()"></div>
+      <div><label>القسط</label><select id="rsq" onchange="renderDistributionSummaryReport()"><option value="">كل الأقساط</option><option value="1">القسط الأول</option><option value="2">القسط الثاني</option><option value="3">القسط الثالث</option></select></div>
+      <div><label>نوع المصروف</label><select id="rstype" onchange="renderDistributionSummaryReport()"><option value="">كل الأنواع</option></select></div>
+    </div>
+    <div id="distributionSummaryReportBody"></div>
+  </div>
+
+  <div id="reportStudentCollections" class="card hidden">
+    <div class="report-head"><div><h3 style="margin:0">💰 تحصيلات الطلبة</h3><div class="muted">اختار طالب لعرض ما تم توزيعه عليه حسب القسط ونوع المصروف.</div></div></div>
+    <div class="grid">
+      <div><label>بحث بالاسم أو الكود</label><input id="collectionStudentSearch" oninput="filterCollectionStudents()" placeholder="اكتب اسم الطالب أو الكود"></div>
+      <div><label>الطالب</label><select id="collectionStudent" onchange="renderStudentCollectionReport()"><option value="">اختار الطالب</option></select></div>
+    </div>
+    <div class="output-actions" style="margin-top:8px">
+      <button class="alt small-btn btn-print" onclick="printReport('reportStudentCollections')">🖨️ طباعة</button>
+      <button class="alt small-btn btn-pdf" onclick="downloadReportPDF('reportStudentCollections','تحصيلات_الطالب')">📄 تحميل PDF</button>
+      <button class="alt small-btn btn-excel" onclick="exportStudentCollectionsExcel()">📥 تحميل Excel</button>
+    </div>
+    <div id="studentCollectionReportBody"></div>
+  </div>
+
+  <div id="reportDistributionPeriod" class="card hidden">
+    <div class="report-head"><div><h3 style="margin:0">📊 تقرير التوزيع خلال فترة</h3><div class="muted">يعرض فقط الطلبة الذين وصلهم توزيع فعلي داخل الفترة.</div></div><div class="output-actions"><button class="alt small-btn btn-print" onclick="printReport('reportDistributionPeriod')">🖨️ طباعة</button><button class="alt small-btn btn-pdf" onclick="downloadReportPDF('reportDistributionPeriod','تقرير_التوزيع')">📄 تحميل PDF</button><button class="alt small-btn btn-excel" onclick="exportPeriodDistributionExcel()">📥 تحميل Excel</button></div></div>
+    <div class="grid">
+      <div><label>من تاريخ</label><input id="rdf" type="date" onchange="renderPeriodDistributionReport()"></div>
+      <div><label>إلى تاريخ</label><input id="rdt" type="date" onchange="renderPeriodDistributionReport()"></div>
+    </div>
+    <div id="periodDistributionReportBody"></div>
+  </div>
+
+  <div id="reportNotDistributed" class="card hidden">
+    <div class="report-head"><div><h3 style="margin:0">👥 الطلبة غير الموزع عليهم خلال الفترة</h3><div class="muted">يعرض الطلبة الذين لم يصلهم أي توزيع بين التاريخين، حتى لو كان لهم توزيع في أقساط سابقة.</div></div><div class="output-actions"><button class="alt small-btn btn-print" onclick="printReport('reportNotDistributed')">🖨️ طباعة</button><button class="alt small-btn btn-pdf" onclick="downloadReportPDF('reportNotDistributed','الطلبة_غير_الموزع_عليهم')">📄 تحميل PDF</button><button class="alt small-btn btn-excel" onclick="exportNotDistributedExcel()">📥 تحميل Excel</button></div></div>
+    <div class="grid"><div><label>من تاريخ</label><input id="ndf" type="date" onchange="renderNotDistributedReport()"></div><div><label>إلى تاريخ</label><input id="ndt" type="date" onchange="renderNotDistributedReport()"></div></div>
+    <div id="notDistributedReportBody"></div>
+  </div>
+</section>
+</div></main></div>
+<div id="deleteModal" class="modal hidden" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="modal-box" style="width:min(520px,100%)">
+    <div class="modal-head"><h3 style="margin:0">🗑️ تأكيد الحذف النهائي</h3><button class="alt small-btn" onclick="closeDeleteModal()">✖</button></div>
+    <div id="deleteModalText"></div>
+    <div class="output-actions" style="justify-content:flex-start;margin-top:10px"><button class="alt" onclick="closeDeleteModal()">إلغاء</button><button id="deleteConfirmBtn" class="danger" onclick="executeHardDelete()">حذف نهائي</button></div>
+  </div>
+</div>
+<script>
+const API_URL='https://script.google.com/macros/s/AKfycby9ZiaK8NPUjEQtkNSvxfCnALkL0aKo80lxX12fj5uz7d3fTioMfbM7Qoh8rqg826Hu/exec'; // Google Apps Script Web App URL
+let D={academicYear:'',yearStart:'',yearEnd:'',installments:[],rules:[],stages:[],stageFees:{},students:[],allocations:[],operations:[]};
+async function api(action,payload){const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload:payload||{}})});const j=await r.json();if(!j.ok)throw new Error(j.error||'API error');return j.data;}
+function applyState(state){D=state;ensureStudentData();populateStageFilter();}
+function populateStageFilter(){const el=document.getElementById('sg');if(!el)return;const cur=el.value;el.innerHTML='<option value="">كل المراحل</option>'+(D.stages||[]).map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');el.value=(D.stages||[]).includes(cur)?cur:'';}
+function apiError(err){alert('خطأ في الاتصال بالخادم: '+(err.message||err));}
+async function apiLoad(){try{applyState(await api('load'));show(document.querySelector('nav button[data-module].active')?.getAttribute('data-module')||'home');}catch(err){apiError(err);}}
+function distributionView(){
+  const today=document.getElementById('dd')?.value||'';
+  const idx=(typeof installmentForDate==='function')?installmentForDate(today):0;
+  const inst=D.installments[Math.max(0,idx||0)]||D.installments[0];
+  const allocated=(D.allocations||[]).filter(a=>Number(a.installmentId)===Number(inst?.id))
+    .reduce((x,a)=>x+Number(a.amount||0),0);
+  const target=Number(inst?.target||0);
+  const remaining=Math.max(0,target-allocated);
+  const set=(id,val)=>{const e=document.getElementById(id);if(e)e.textContent=val;};
+  set('distSummaryPeriod',inst?inst.name:'القسط الحالي: —');
+  set('sumInstallmentTarget',target.toLocaleString()+' ج');
+  set('sumInstallmentDistributed',allocated.toLocaleString()+' ج');
+  set('sumInstallmentRemaining',remaining.toLocaleString()+' ج');
+  set('sumInstallmentPercent',(target?Math.min(100,allocated/target*100):0).toFixed(1)+'%');
+}
+
+function show(id){
+  try{
+    document.querySelectorAll('main section[id]').forEach(x=>x.classList.add('hidden'));
+    const target=document.getElementById(id);
+    if(!target){ console.error('Section not found:',id); return; }
+    target.classList.remove('hidden');
+    document.querySelectorAll('.nav button[data-module]').forEach(b=>b.classList.toggle('active',b.getAttribute('data-module')===id));
+    const titles={home:'الرئيسية',settings:'إعدادات العام',students:'بيانات الطلبة',dist:'توزيع التحصيل',reports:'التقارير'};
+    const h=document.getElementById('moduleTitle');
+    if(h) h.textContent=titles[id]||'نظام تحصيلات الطلبة';
+    if(id==='settings') settings();
+    else if(id==='students') studentsView();
+    else if(id==='dist') distributionView();
+    else if(id==='reports'){
+      populateReportStudentSelect(document.getElementById('collectionStudentSearch')?.value||'',false);
+    }
+    home();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }catch(err){
+    console.error('Navigation error:',id,err);
+    alert('حدث خطأ أثناء فتح الموديول: '+(err.message||err));
+  }
+}
+
+function home(){document.getElementById('hy').textContent=D.academicYear;document.getElementById('ht').textContent=D.installments.reduce((a,x)=>a+x.target,0).toLocaleString()+' ج';const sy=document.getElementById('sideYear');if(sy)sy.textContent=D.academicYear}
+function settings(){
+document.getElementById('ay').value=D.academicYear;document.getElementById('ys').value=D.yearStart;document.getElementById('ye').value=D.yearEnd;
+document.getElementById('inst').innerHTML=D.installments.map(i=>`<tr><td>${i.name}</td><td><input id="f${i.id}" type="date" value="${i.from}"></td><td><input id="t${i.id}" type="date" value="${i.to}"></td><td><input id="x${i.id}" type="number" value="${i.target}"></td><td>${(i.distributed||0).toLocaleString()}</td><td>${(i.carry||0).toLocaleString()}</td></tr>`).join('');
+document.getElementById('rules').innerHTML=D.rules.map((r,n)=>`<tr><td>${r.name}</td><td><input id="a${n}" type="number" value="${r.q1}"></td><td><input id="b${n}" type="number" value="${r.q2}"></td><td><input id="c${n}" type="number" value="${r.q3}"></td></tr>`).join('');
+document.getElementById('fees').innerHTML=Object.entries(D.stageFees).map(([g,f])=>`<tr><td>${g}</td>${['تعليم','نشاط','باص','كتب الوزارة','كتب خارجية'].map(k=>`<td><input id="v_${g}_${k}" type="number" value="${f[k]||0}"></td>`).join('')}</tr>`).join('');
+}
+function saveYear(){api('saveYear',{academicYear:document.getElementById('ay').value,yearStart:document.getElementById('ys').value,yearEnd:document.getElementById('ye').value}).then(st=>{applyState(st);alert('تم حفظ إعدادات العام')}).catch(apiError)}
+function saveInst(){api('saveInst',{installments:D.installments.map(i=>({id:i.id,from:document.getElementById('f'+i.id).value,to:document.getElementById('t'+i.id).value,target:+document.getElementById('x'+i.id).value||0}))}).then(st=>{applyState(st);alert('تم حفظ الأقساط والمستهدفات');settings();home()}).catch(apiError)}
+function saveRules(){api('saveRules',{rules:D.rules.map((r,n)=>({name:r.name,q1:+document.getElementById('a'+n).value||0,q2:+document.getElementById('b'+n).value||0,q3:+document.getElementById('c'+n).value||0}))}).then(st=>{applyState(st);alert('تم حفظ نسب السداد')}).catch(apiError)}
+function saveFees(){const stageFees={};for(let g in D.stageFees){stageFees[g]={};for(let k of ['تعليم','نشاط','باص','كتب الوزارة','كتب خارجية'])stageFees[g][k]=+document.getElementById('v_'+g+'_'+k).value||0}api('saveFees',{stageFees}).then(st=>{applyState(st);alert('تم حفظ اللائحة')}).catch(apiError)}
+function studentStatus(s){return s.active===false?'غير نشط':'نشط'}
+function studentHasDistribution(sid){
+  return (D.allocations||[]).some(a=>String(a.studentId)===String(sid)&&Number(a.amount||0)>0);
+}
+function studentsView(){
+  let q=(document.getElementById('sq').value||'').toLowerCase(),
+      g=document.getElementById('sg').value;
+  let a=D.students.filter(s=>
+    (!q||String(s.name||'').toLowerCase().includes(q)||String(s.code||s.ser||'').toLowerCase().includes(q)) &&
+    (!g||s.grade===g)
+  ).slice(0,200);
+
+  document.getElementById('sr').innerHTML=a.map(s=>{
+    const has=studentHasDistribution(s.ser);
+    const status=studentStatus(s);
+    return `<tr>
+      <td><input type="checkbox" class="selStudent" value="${s.ser}" ${SELECTED.has(String(s.ser))?'checked':''} onchange="toggleSelect(this)" style="width:auto;margin:0"></td>
+      <td>${s.ser}</td>
+      <td><button class="student-name-btn" onclick="openStudentModal('${String(s.ser).replace(/'/g,"\\'")}')">${escapeHtml(s.name||'')}</button></td>
+      <td>${escapeHtml(s.grade||'')}</td>
+      <td class="${s.active===false?'status-inactive':'status-active'}">${status}</td>
+      <td>
+        <button class="small-btn alt" onclick="openStudentModal('${String(s.ser).replace(/'/g,"\\'")}')">عرض / تعديل</button>
+        ${!has && s.active!==false ? `<button class="small-btn" onclick="setStudentInactive('${String(s.ser).replace(/'/g,"\\'")}')">غير نشط</button>`:''}
+        ${!has && s.active!==false ? `<button class="small-btn danger" onclick="deleteStudent('${String(s.ser).replace(/'/g,"\\'")}')">حذف</button>`:''}
+        ${s.active===false ? `<button class="small-btn success" onclick="reactivateStudent('${String(s.ser).replace(/'/g,"\\'")}')">إعادة نشط</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+  syncSelectAll();
+}
+function escapeHtml(v){
+  return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function getStudent(id){return D.students.find(s=>String(s.ser)===String(id));}
+function allocationBreakdown(a){
+  if(a.breakdown && Object.keys(a.breakdown).length) return a.breakdown;
+  // Backfill old allocations proportionally from the installment's fee rules.
+  const s=getStudent(a.studentId);
+  if(!s) return {};
+  const idx=Math.max(0,Number(a.installmentId||1)-1);
+  const fees=D.stageFees[s.grade]||{}, out={};
+  let totalDue=0;
+  (D.rules||[]).forEach(r=>{
+    const v=Number(fees[r.name]||0)*Number(r['q'+(idx+1)]||0)/100;
+    if(v>0){out[r.name]=v;totalDue+=v;}
+  });
+  if(totalDue<=0)return {};
+  const factor=Number(a.amount||0)/totalDue;
+  Object.keys(out).forEach(k=>out[k]*=factor);
+  return out;
+}
+function openStudentModal(id){
+  const s=getStudent(id); if(!s)return;
+  const alloc=(D.allocations||[]).filter(a=>String(a.studentId)===String(id));
+  const total=alloc.reduce((x,a)=>x+Number(a.amount||0),0);
+  const byType={}, byInstType={};
+  alloc.forEach(a=>{
+    const b=allocationBreakdown(a);
+    const inst=a.installmentName||('القسط '+a.installmentId);
+    if(!byInstType[inst])byInstType[inst]={};
+    Object.entries(b).forEach(([type,v])=>{
+      byType[type]=(byType[type]||0)+Number(v||0);
+      byInstType[inst][type]=(byInstType[inst][type]||0)+Number(v||0);
+    });
+  });
+  const has=total>0;
+
+  document.getElementById('studentModalTitle').textContent=s.name||'الطالب';
+  document.getElementById('studentModalMeta').textContent=`كود الطالب: ${s.code||s.ser} — المرحلة: ${s.grade||'—'} — الحالة: ${studentStatus(s)}`;
+
+  const typeRows=Object.entries(byInstType).flatMap(([inst,types])=>
+    Object.entries(types).map(([type,v])=>`<tr><td>${escapeHtml(inst)}</td><td>${escapeHtml(type)}</td><td>${Number(v).toLocaleString(undefined,{maximumFractionDigits:2})} ج</td></tr>`)
+  );
+
+  document.getElementById('studentModalBody').innerHTML=`
+    <div class="grid">
+      <div><label>كود الطالب</label><div class="big">${escapeHtml(s.code||s.ser)}</div></div>
+      <div><label>إجمالي المبالغ الموزعة</label><div class="big">${total.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div>
+      <div><label>الحالة</label><div class="big">${studentStatus(s)}</div></div>
+    </div>
+
+    <div class="card" style="margin-top:10px;padding:12px">
+      <div class="output-actions" style="margin-bottom:8px">
+        <button class="alt small-btn btn-print" onclick="printStudent('${String(id).replace(/'/g,"\'")}')">🖨️ طباعة</button>
+        <button class="alt small-btn btn-pdf" onclick="downloadStudentPDF('${String(id).replace(/'/g,"\'")}')">📄 تحميل PDF</button>
+        <button class="alt small-btn btn-excel" onclick="exportSingleStudentExcel('${String(id).replace(/'/g,"\'")}')">📥 تحميل Excel</button>
+      </div>
+      <h4 style="margin:0 0 8px">💰 الموزع على الطالب حسب القسط ونوع المصروف</h4>
+      ${typeRows.length?`
+      <table><thead><tr><th>القسط</th><th>نوع المصروف</th><th>المبلغ</th></tr></thead>
+      <tbody>${typeRows.join('')}</tbody></table>
+      `:'<p class="muted">لم يتم توزيع أي مبلغ على الطالب حتى الآن.</p>'}
+      <div style="font-weight:bold;margin-top:12px">إجمالي كل نوع مصروف</div>
+      <table><thead><tr><th>نوع المصروف</th><th>الإجمالي الموزع</th></tr></thead>
+      <tbody>${Object.entries(byType).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${Number(v).toLocaleString(undefined,{maximumFractionDigits:2})} ج</td></tr>`).join('') || '<tr><td colspan="2" class="muted">لا توجد توزيعات.</td></tr>'}</tbody></table>
+    </div>
+
+    <div class="card" style="margin-top:10px;padding:12px">
+      <h4 style="margin:0 0 8px">✏️ تعديل اسم الطالب</h4>
+      <input id="editStudentName" value="${escapeHtml(s.name||'')}">
+      <button style="margin-top:7px" onclick="saveStudentName('${String(id).replace(/'/g,"\\'")}')">💾 حفظ الاسم</button>
+      <div class="muted" style="margin-top:5px">تغيير الاسم يحافظ على كود الطالب وسجل التوزيعات بالكامل.</div>
+    </div>
+
+    <div class="card" style="margin-top:10px;padding:12px">
+      <h4 style="margin:0 0 8px">📋 تفاصيل عمليات التوزيع</h4>
+      ${alloc.length?`
+      <table><thead><tr><th>التاريخ</th><th>القسط</th><th>المبلغ</th><th>رقم العملية</th></tr></thead>
+      <tbody>${alloc.map(a=>`<tr><td>${a.date||'—'}</td><td>${escapeHtml(a.installmentName||'—')}</td><td>${Number(a.amount||0).toLocaleString(undefined,{maximumFractionDigits:2})} ج</td><td>${escapeHtml(a.operationId||'—')}</td></tr>`).join('')}</tbody></table>
+      `:'<p class="muted">لا توجد عمليات.</p>'}
+    </div>
+
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${!has && s.active!==false?`<button onclick="setStudentInactive('${String(id).replace(/'/g,"\\'")}');closeStudentModal()">تحويل لغير نشط</button><button class="danger" onclick="deleteStudent('${String(id).replace(/'/g,"\\'")}');closeStudentModal()">حذف نهائي</button>`:''}
+      ${s.active===false?`<button class="success" onclick="reactivateStudent('${String(id).replace(/'/g,"\\'")}');closeStudentModal()">إعادة نشط</button>`:''}
+      ${has?'<div class="muted" style="padding:8px 0">⚠️ الطالب له توزيعات مالية؛ لذلك يظل نشطًا في السجل ولا يمكن حذفه أو إيقافه حفاظًا على التاريخ.</div>':''}
+    </div>`;
+  document.getElementById('studentModal').classList.remove('hidden');
+}
+function closeStudentModal(){document.getElementById('studentModal').classList.add('hidden');}
+function saveStudentName(id){
+  const s=getStudent(id), input=document.getElementById('editStudentName');
+  if(!s||!input)return;
+  const name=input.value.trim();
+  if(!name){alert('اسم الطالب لا يمكن أن يكون فارغًا.');return}
+  api('saveStudentName',{id,name}).then(st=>{applyState(st);studentsView();openStudentModal(id);}).catch(apiError);
+}
+function setStudentInactive(id){
+  const s=getStudent(id); if(!s)return;
+  if(studentHasDistribution(id)){alert('لا يمكن تحويل الطالب إلى غير نشط لأنه تم توزيع مبلغ عليه.');return}
+  api('setStudentActive',{id,active:false}).then(st=>{applyState(st);studentsView();}).catch(apiError);
+}
+function reactivateStudent(id){
+  const s=getStudent(id); if(!s)return;
+  api('setStudentActive',{id,active:true}).then(st=>{applyState(st);studentsView();}).catch(apiError);
+}
+function deleteStudent(id){
+  const s=getStudent(id); if(!s)return;
+  if(studentHasDistribution(id)){alert('لا يمكن حذف الطالب نهائيًا لأنه تم توزيع مبلغ عليه.');return}
+  if(!confirm('هل تريد حذف الطالب نهائيًا؟'))return;
+  api('deleteStudent',{id}).then(st=>{applyState(st);studentsView();}).catch(apiError);
+}
+function instFor(d){return D.installments.find(i=>d>=i.from&&d<=i.to)}
+function ensureStudentData(){
+  D.students.forEach(s=>{
+    if(s.active===undefined) s.active=true;
+    if(!s.code) s.code=String(s.ser);
+  });
+  if(!Array.isArray(D.allocations)) D.allocations=[];
+  if(!Array.isArray(D.operations)) D.operations=[];
+}
+function installmentDueForStudent(s, instIndex){
+  const fees=D.stageFees[s.grade]||{};
+  let due=0;
+  (D.rules||[]).forEach(r=>{
+    const pct=Number(r['q'+(instIndex+1)]||0)/100;
+    due += Number(fees[r.name]||0)*pct;
+  });
+  return Math.max(0,due);
+}
+function allocationTypeBreakdown(student, instIndex, amount){
+  const fees=D.stageFees[student.grade]||{}, out={};
+  let total=0;
+  (D.rules||[]).forEach(r=>{
+    const v=Number(fees[r.name]||0)*Number(r['q'+(instIndex+1)]||0)/100;
+    if(v>0){out[r.name]=v;total+=v;}
+  });
+  if(total<=0)return {};
+  Object.keys(out).forEach(k=>out[k]=Number(amount||0)*(out[k]/total));
+  return out;
+}
+function studentInstallmentAllocated(s,instIndex){
+  return (D.allocations||[]).filter(a=>String(a.studentId)===String(s.ser)&&Number(a.installmentId)===instIndex+1).reduce((x,a)=>x+Number(a.amount||0),0);
+}
+function allocateToActiveStudents(amount, instIndex, date, operationId, discountMap={}){
+  ensureStudentData();
+  let remaining=Number(amount||0), result=[];
+  const all=D.students.filter(s=>s.active!==false).map(s=>({s,due:Math.max(0,installmentDueForStudent(s,instIndex)-studentInstallmentAllocated(s,instIndex)-(Number(discountMap[String(s.ser)]||0)))})).filter(x=>x.due>0.005);
+  const groups=[all.filter(x=>studentInstallmentAllocated(x.s,instIndex)>0),all.filter(x=>studentInstallmentAllocated(x.s,instIndex)<=0)];
+  for(const group of groups){
+    if(remaining<=0.005||!group.length)continue;
+    const totalDue=group.reduce((x,a)=>x+a.due,0); if(totalDue<=0)continue;
+    group.forEach(x=>{
+      if(remaining<=0.005)return;
+      const share=Math.min(x.due,remaining*(x.due/totalDue)); if(share<=0.005)return;
+      let existing=(D.allocations||[]).find(a=>String(a.studentId)===String(x.s.ser)&&Number(a.installmentId)===instIndex+1&&a.operationId===operationId);
+      if(existing){existing.amount+=share;Object.entries(allocationTypeBreakdown(x.s,instIndex,share)).forEach(([k,v])=>existing.breakdown[k]=(existing.breakdown[k]||0)+v);}
+      else D.allocations.push({operationId,studentId:x.s.ser,studentName:x.s.name,installmentId:instIndex+1,installmentName:D.installments[instIndex].name,date,amount:share,discount:Number(discountMap[String(x.s.ser)]||0),breakdown:allocationTypeBreakdown(x.s,instIndex,share)});
+      result.push({student:x.s,amount:share}); remaining-=share;
+    });
+  }
+  return {allocated:Number(amount)-Math.max(0,remaining),remaining:Math.max(0,remaining),result};
+}
+function buildRandomDiscountMap(instIndex,n,total){
+  const eligible=D.students.filter(s=>s.active!==false).map(s=>({s,due:Math.max(0,installmentDueForStudent(s,instIndex)-studentInstallmentAllocated(s,instIndex))})).filter(x=>x.due>0.005);
+  if(!n||!total||!eligible.length)return {};
+  eligible.sort(()=>Math.random()-.5); const chosen=eligible.slice(0,Math.min(n,eligible.length));
+  let rem=Math.min(Number(total),chosen.reduce((x,y)=>x+y.due,0)), map={};
+  chosen.forEach((x,i)=>{let min=Math.min(x.due,rem);let v=(i===chosen.length-1)?rem:Math.min(min,Math.max(1,Math.random()*Math.min(min,rem)));v=Math.min(v,x.due,rem);map[String(x.s.ser)]=v;rem-=v;});
+  if(rem>0.005){for(const x of chosen){const cap=x.due-(map[String(x.s.ser)]||0),v=Math.min(cap,rem);map[String(x.s.ser)]=(map[String(x.s.ser)]||0)+v;rem-=v;if(rem<=.005)break;}}
+  return map;
+}
+function distribute(){
+  ensureStudentData();
+  let date=document.getElementById('dd').value,
+      amount=Math.max(0,+document.getElementById('da').value||0),
+      n=Math.max(0,Math.floor(+document.getElementById('dc').value||0)),
+      discount=Math.max(0,+document.getElementById('dt').value||0),
+      start=D.installments.findIndex(i=>date>=i.from&&date<=i.to);
+
+  if(start<0){document.getElementById('distOutput').innerHTML='<p class="warn">التاريخ خارج فترات الأقساط.</p>';return}
+  if(amount<=0){document.getElementById('distOutput').innerHTML='<p class="warn">أدخل مبلغ التحصيل أولًا.</p>';return}
+
+  document.getElementById('distOutput').innerHTML='<p class="muted">جارٍ تنفيذ التوزيع على الخادم...</p>';
+  api('distribute',{date,amount,n,discount}).then(res=>{
+  applyState(res.state);
+  const op=res.operation, operationId=op.id, allAllocated=op.allocated, rem=op.unallocated, rows=op.installmentRows, discountMap=op.discountMap||{}, actualDiscount=op.discountTotal;
+  start=op.startInstallment;
+
+  document.getElementById('distOutput').innerHTML=
+  `<div class="card"><div class="grid">
+  <div><label>القسط المحدد تلقائيًا</label><div class="big">${D.installments[start].name}</div></div>
+  <div><label>المبلغ المدخل</label><div class="big">${amount.toLocaleString()} ج</div></div>
+  <div><label>تم توزيعه على الطلبة</label><div class="big">${allAllocated.toLocaleString()} ج</div></div>
+  <div><label>غير موزع</label><div class="big">${rem.toLocaleString()} ج</div></div>
+  </div>
+  <table><thead><tr><th>القسط</th><th>المستهدف بعد الترحيل</th><th>المبلغ الموزع</th><th>المتبقي</th><th>المرحل</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1].toLocaleString()}</td><td>${r[2].toLocaleString()}</td><td>${r[3].toLocaleString()}</td><td>${r[4].toLocaleString()}</td></tr>`).join('')}</tbody></table>
+  <p class="ok">تم تسجيل العملية ${operationId} وتوزيع المبلغ على الطلبة النشطين المستحقين.</p>
+  <p class="muted">مستفيدي الخصم: ${Object.keys(discountMap).length} — إجمالي الخصومات الفعلي: ${actualDiscount.toLocaleString(undefined,{maximumFractionDigits:2})} ج</p>
+  </div>`;
+
+  renderDistributionSummary(start);
+  settings();
+  home();
+  studentsView();
+  }).catch(err=>{document.getElementById('distOutput').innerHTML='<p class="warn">'+escapeHtml(err.message||err)+'</p>';});
+}
+function renderDistributionSummary(startIndex){
+  let inst=D.installments[startIndex>=0?startIndex:0];
+  if(!inst) return;
+
+  const fmt=v=>Math.round(Number(v||0)).toLocaleString('en-US');
+  const set=(id,v)=>{let e=document.getElementById(id);if(e)e.textContent=v;};
+
+  // Current installment: target / distributed / remaining.
+  const target=Number(inst.target||0)+Number(inst.carry||0);
+  const distributed=Number(inst.distributed||0);
+  const remaining=Math.max(0,target-distributed);
+  const pct=target?Math.min(100,distributed/target*100):0;
+
+  set('distSummaryPeriod','القسط الحالي: '+inst.name);
+  set('sumInstallmentTarget',fmt(target)+' ج');
+  set('sumInstallmentDistributed',fmt(distributed)+' ج');
+  set('sumInstallmentRemaining',fmt(remaining)+' ج');
+  set('sumInstallmentPercent',pct.toFixed(1)+'%');
+
+  // Annual budget by expense type = stage fee × number of students.
+  const budget={};
+  Object.keys(D.stageFees||{}).forEach(stage=>{
+    const count=D.students.filter(s=>s.grade===stage).length;
+    const fees=D.stageFees[stage]||{};
+    Object.keys(fees).forEach(type=>{
+      budget[type]=(budget[type]||0)+Number(fees[type]||0)*count;
+    });
+  });
+
+  // Distributed total comes from the actual student allocation ledger.
+  const totalDistributed=(D.allocations||[]).reduce((a,x)=>a+Number(x.amount||0),0);
+  const distributedByType={};
+  (D.allocations||[]).forEach(a=>Object.entries(allocationBreakdown(a)).forEach(([k,v])=>{
+    distributedByType[k]=(distributedByType[k]||0)+Number(v||0);
+  }));
+  const types=Object.keys(budget);
+  const body=document.getElementById('distributionBudgetBody');
+  if(body){
+    body.innerHTML=types.length ? types.map(type=>{
+      const b=budget[type]||0;
+      // Expense-type attribution will be finalized with the fee-rule engine.
+      // For now the table shows the total student-level distributed amount
+      // separately in the annual totals below.
+      const d=Number(distributedByType[type]||0);
+      return `<tr><td>${escapeHtml(type)}</td><td>${fmt(b)} ج</td><td>${fmt(d)} ج</td><td>${fmt(Math.max(0,b-d))} ج</td></tr>`;
+    }).join('') :
+    '<tr><td colspan="4" class="muted">لم يتم إدخال Budget حسب نوع المصروف بعد.</td></tr>';
+  }
+
+  const totalBudget=Object.values(budget).reduce((a,b)=>a+Number(b||0),0);
+  set('sumAnnualBudget',fmt(totalBudget)+' ج');
+  set('sumAnnualDistributed',fmt(totalDistributed)+' ج');
+  set('sumAnnualRemaining',fmt(Math.max(0,totalBudget-totalDistributed))+' ج');
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  const d=document.getElementById('dd');
+  if(d){
+    const refresh=()=>{
+      const idx=D.installments.findIndex(i=>d.value>=i.from&&d.value<=i.to);
+      if(idx>=0) renderDistributionSummary(idx);
+    };
+    d.addEventListener('change',refresh);
+    refresh();
+  }
+});
+
+
+function excelXmlEscape(v){
+  return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+function excelCell(v, type){
+  if(type==='Number' && isFinite(Number(v))) return `<Cell><Data ss:Type="Number">${Number(v)}</Data></Cell>`;
+  return `<Cell><Data ss:Type="String">${excelXmlEscape(v)}</Data></Cell>`;
+}
+function excelSheet(name, headers, rows){
+  let xml=`<Worksheet ss:Name="${excelXmlEscape(name)}"><Table>`;
+  xml+=`<Row>${headers.map(h=>`<Cell ss:StyleID="Header"><Data ss:Type="String">${excelXmlEscape(h)}</Data></Cell>`).join('')}</Row>`;
+  rows.forEach(r=>{
+    xml+=`<Row>${r.map((v,i)=>excelCell(v, typeof v==='number'?'Number':'String')).join('')}</Row>`;
+  });
+  xml+=`</Table><AutoFilter x:Range="R1C1:R${rows.length+1}C${headers.length}" xmlns="urn:schemas-microsoft-com:office:excel"/></Worksheet>`;
+  return xml;
+}
+function downloadExcelXml(filename, sheets){
+  const xml=`<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="10"/></Style>
+  <Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#123166" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+ </Styles>
+ ${sheets.map(s=>excelSheet(s.name,s.headers,s.rows)).join('')}
+</Workbook>`;
+  const blob=new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function exportStudentsExcel(){
+  ensureStudentData();
+  const rows=D.students.map(s=>[
+    s.ser,s.code||s.ser,s.name,s.grade,studentStatus(s),
+    (D.allocations||[]).filter(a=>String(a.studentId)===String(s.ser)).reduce((x,a)=>x+Number(a.amount||0),0)
+  ]);
+  downloadExcelXml('بيانات_الطلبة_2026_2027.xls',[
+    {name:'الطلبة',headers:['م','كود الطالب','اسم الطالب','المرحلة','الحالة','إجمالي الموزع'],rows},
+    {name:'توزيعات الطلبة',headers:['رقم العملية','التاريخ','كود الطالب','اسم الطالب','المرحلة','القسط','نوع المصروف','المبلغ'],rows:(D.allocations||[]).flatMap(a=>{
+      const s=getStudent(a.studentId), b=allocationBreakdown(a);
+      return Object.entries(b).map(([type,v])=>[a.operationId,a.date,s?(s.code||s.ser):a.studentId,s?s.name:a.studentName,s?s.grade:'—',a.installmentName,type,v]);
+    })}
+  ]);
+}
+function exportAllExcel(){exportStudentsExcel();}
+
+function populateReportStudentSelect(filterText, autoSelectExact=true){
+  const el=document.getElementById('collectionStudent');
+  if(!el)return;
+  const old=el.value;
+  const q=String(filterText||'').trim().toLowerCase();
+  const list=D.students.filter(s=>{
+    if(!(s.active!==false||studentHasDistribution(s.ser)))return false;
+    if(!q)return true;
+    return String(s.name||'').toLowerCase().includes(q) ||
+           String(s.code||s.ser||'').toLowerCase().includes(q);
+  });
+
+  el.innerHTML='<option value="">اختار الطالب</option>'+
+    list.map(s=>`<option value="${escapeHtml(String(s.ser))}">${escapeHtml(s.name||'')} — ${escapeHtml(s.code||s.ser)} — ${escapeHtml(s.grade||'')}</option>`).join('');
+
+  // If the user entered an exact student code, select it and show details immediately.
+  if(autoSelectExact && q){
+    const exact=list.find(s=>String(s.code||s.ser).toLowerCase()===q);
+    if(exact){
+      el.value=String(exact.ser);
+      renderStudentCollectionReport();
+      return;
+    }
+    const exactName=list.find(s=>String(s.name||'').trim().toLowerCase()===q);
+    if(exactName){
+      el.value=String(exactName.ser);
+      renderStudentCollectionReport();
+      return;
+    }
+  }
+
+  if(old && list.some(s=>String(s.ser)===String(old)))el.value=old;
+}
+function filterCollectionStudents(){
+  const q=document.getElementById('collectionStudentSearch')?.value||'';
+  populateReportStudentSelect(q,true);
+
+  const body=document.getElementById('studentCollectionReportBody');
+  const el=document.getElementById('collectionStudent');
+  if(!q.trim()){
+    renderStudentCollectionReport();
+    return;
+  }
+
+  // Give immediate feedback when there are several matches.
+  const count=Array.from(el?.options||[]).length-1;
+  if(count>1 && !el.value && body){
+    body.innerHTML=`<div class="muted">تم العثور على <strong>${count}</strong> طالب مطابق. اختار الطالب من القائمة بالأسفل.</div>`;
+  }else if(count===0 && body){
+    body.innerHTML='<div class="muted">لا يوجد طالب مطابق للاسم أو الكود.</div>';
+  }
+}
+function openReport(which){
+  ['reportDistributionSummary','reportStudentCollections','reportDistributionPeriod','reportNotDistributed'].forEach(id=>{
+    const el=document.getElementById(id); if(el)el.classList.add('hidden');
+  });
+  const today=new Date().toISOString().slice(0,10);
+  const first=D.installments?.[0]?.from||today;
+  const last=D.installments?.[2]?.to||today;
+  const end=today>last?last:today;
+  if(which==='distributionSummary'){
+    const f=document.getElementById('rsf'),t=document.getElementById('rst'),sel=document.getElementById('rstype');
+    if(f&&!f.value)f.value=first;if(t&&!t.value)t.value=end;
+    if(sel){
+      const types=(D.rules||[]).map(r=>r.name);
+      sel.innerHTML='<option value="">كل الأنواع</option>'+types.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+    }
+    document.getElementById('reportDistributionSummary')?.classList.remove('hidden');
+    renderDistributionSummaryReport();
+  }else if(which==='studentCollections'){
+    document.getElementById('reportStudentCollections')?.classList.remove('hidden');
+    populateReportStudentSelect(document.getElementById('collectionStudentSearch')?.value||'',false);
+    renderStudentCollectionReport();
+  }else if(which==='distributionPeriod'){
+    const f=document.getElementById('rdf'),t=document.getElementById('rdt');
+    if(f&&!f.value)f.value=first;if(t&&!t.value)t.value=end;
+    document.getElementById('reportDistributionPeriod')?.classList.remove('hidden');
+    renderPeriodDistributionReport();
+  }else if(which==='notDistributed'){
+    const f=document.getElementById('ndf'),t=document.getElementById('ndt');
+    if(f&&!f.value)f.value=first;if(t&&!t.value)t.value=end;
+    document.getElementById('reportNotDistributed')?.classList.remove('hidden');
+    renderNotDistributedReport();
+  }
+}
+function renderStudentCollectionReport(){
+  const body=document.getElementById('studentCollectionReportBody'); if(!body)return;
+  const id=document.getElementById('collectionStudent')?.value;
+  if(!id){body.innerHTML='<p class="muted">اختار الطالب لعرض تفاصيل التحصيلات.</p>';return;}
+  const s=getStudent(id); if(!s){body.innerHTML='<p class="muted">الطالب غير موجود.</p>';return;}
+  const alloc=(D.allocations||[]).filter(a=>String(a.studentId)===String(id));
+  const rows=[];
+  alloc.forEach(a=>Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{
+    rows.push([a.date||'—',a.installmentName||('القسط '+a.installmentId),type,Number(v||0),a.operationId||'—']);
+  }));
+  const total=rows.reduce((x,r)=>x+r[3],0),disc=alloc.reduce((x,a)=>x+Number(a.discount||0),0);
+  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>الطالب</label><div class="big" style="font-size:18px">${escapeHtml(s.name||'—')}</div></div><div><label>إجمالي الموزع</label><div class="big">${total.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div><div><label>إجمالي الخصم</label><div class="big">${disc.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div></div>
+  <div class="scroll" style="max-height:520px"><table><thead><tr><th>التاريخ</th><th>القسط</th><th>نوع المصروف</th><th>المبلغ</th><th>رقم العملية</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td>${escapeHtml(r[1])}</td><td>${escapeHtml(r[2])}</td><td>${r[3].toLocaleString(undefined,{maximumFractionDigits:2})} ج</td><td>${escapeHtml(r[4])}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">لا توجد توزيعات لهذا الطالب.</td></tr>'}</tbody><tfoot><tr><th colspan="3">الإجمالي</th><th>${total.toLocaleString(undefined,{maximumFractionDigits:2})} ج</th><th></th></tr></tfoot></table></div>`;
+}
+function renderDistributionSummaryReport(){
+  const body=document.getElementById('distributionSummaryReportBody'); if(!body)return;
+  const from=document.getElementById('rsf')?.value||'',to=document.getElementById('rst')?.value||'',q=document.getElementById('rsq')?.value||'',type=document.getElementById('rstype')?.value||'';
+  if(from&&to&&from>to){body.innerHTML='<p class="warn">تاريخ البداية يجب أن يكون قبل تاريخ النهاية.</p>';return;}
+  const rows=[];
+  (D.installments||[]).forEach(inst=>{
+    if(q&&String(inst.id)!==q)return;
+    (D.rules||[]).forEach(r=>{
+      if(type&&r.name!==type)return;
+      const dueTarget=Number(inst.target||0)*Number(r['q'+inst.id]||0)/100;
+      const allocated=(D.allocations||[]).filter(a=>Number(a.installmentId)===Number(inst.id)&&(!from||a.date>=from)&&(!to||a.date<=to)).reduce((sum,a)=>sum+Number(allocationBreakdown(a)[r.name]||0),0);
+      rows.push([inst.name,r.name,dueTarget,allocated,Math.max(0,dueTarget-allocated)]);
+    });
+  });
+  const totals=rows.reduce((x,r)=>{x.target+=r[2];x.dist+=r[3];x.rem+=r[4];return x},{target:0,dist:0,rem:0});
+  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>إجمالي المستهدف</label><div class="big">${totals.target.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div><div><label>إجمالي الموزع</label><div class="big">${totals.dist.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div><div><label>إجمالي المتبقي</label><div class="big">${totals.rem.toLocaleString(undefined,{maximumFractionDigits:2})} ج</div></div></div>
+  <div class="scroll" style="max-height:520px"><table><thead><tr><th>القسط</th><th>نوع المصروف</th><th>المستهدف</th><th>الموزع</th><th>المتبقي</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r[0])}</td><td>${escapeHtml(r[1])}</td><td>${r[2].toLocaleString(undefined,{maximumFractionDigits:2})} ج</td><td>${r[3].toLocaleString(undefined,{maximumFractionDigits:2})} ج</td><td>${r[4].toLocaleString(undefined,{maximumFractionDigits:2})} ج</td></tr>`).join('')||'<tr><td colspan="5" class="muted">لا توجد بيانات.</td></tr>'}</tbody><tfoot><tr><th colspan="2">الإجمالي</th><th>${totals.target.toLocaleString(undefined,{maximumFractionDigits:2})}</th><th>${totals.dist.toLocaleString(undefined,{maximumFractionDigits:2})}</th><th>${totals.rem.toLocaleString(undefined,{maximumFractionDigits:2})}</th></tr></tfoot></table></div>`;
+}
+function exportDistributionSummaryExcel(){
+  const from=document.getElementById('rsf')?.value||'',to=document.getElementById('rst')?.value||'',q=document.getElementById('rsq')?.value||'',type=document.getElementById('rstype')?.value||'';
+  const rows=[];
+  (D.installments||[]).forEach(inst=>{
+    if(q&&String(inst.id)!==q)return;
+    (D.rules||[]).forEach(r=>{
+      if(type&&r.name!==type)return;
+      const target=Number(inst.target||0)*Number(r['q'+inst.id]||0)/100;
+      const dist=(D.allocations||[]).filter(a=>Number(a.installmentId)===Number(inst.id)&&(!from||a.date>=from)&&(!to||a.date<=to)).reduce((sum,a)=>sum+Number(allocationBreakdown(a)[r.name]||0),0);
+      rows.push([inst.name,r.name,target,dist,Math.max(0,target-dist)]);
+    });
+  });
+  downloadExcelXml('ملخص_التوزيع.xls',[{name:'ملخص التوزيع',headers:['القسط','نوع المصروف','المستهدف','الموزع','المتبقي'],rows}]);
+}
+function periodAllocations(from,to){
+  const f=from||'',t=to||'';
+  return (D.allocations||[]).filter(a=>(!f||a.date>=f)&&(!t||a.date<=t));
+}
+function reportMatrixColumns(){
+  const types=(D.rules||[]).map(r=>r.name);
+  const cols=[]; types.forEach(type=>[1,2,3].forEach(q=>cols.push({type,q,label:`${type} — ق${q}`})));
+  return cols;
+}
+function renderPeriodDistributionReport(){
+  const body=document.getElementById('periodDistributionReportBody'); if(!body)return;
+  const from=document.getElementById('rdf')?.value||'',to=document.getElementById('rdt')?.value||'';
+  if(from&&to&&from>to){body.innerHTML='<p class="warn">تاريخ البداية يجب أن يكون قبل تاريخ النهاية.</p>';return}
+  const alloc=periodAllocations(from,to);
+  const ids=[...new Set(alloc.map(a=>String(a.studentId)))];
+  const cols=reportMatrixColumns();
+  const rows=ids.map(id=>{
+    const s=getStudent(id); const vals={}; let total=0,disc=0;
+    alloc.filter(a=>String(a.studentId)===id).forEach(a=>{
+      total+=Number(a.amount||0); disc+=Number(a.discount||0);
+      Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{const k=type+'|'+a.installmentId;vals[k]=(vals[k]||0)+Number(v||0);});
+    });
+    return {s,vals,total,disc};
+  });
+  const grand=rows.reduce((x,r)=>x+r.total,0), grandDisc=rows.reduce((x,r)=>x+r.disc,0);
+  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>عدد الطلبة الذين استلموا توزيعًا</label><div class="big">${rows.length.toLocaleString()}</div></div><div><label>إجمالي المبلغ الموزع</label><div class="big">${grand.toLocaleString()} ج</div></div><div><label>إجمالي الخصومات</label><div class="big">${grandDisc.toLocaleString()} ج</div></div></div>
+  <div class="scroll" style="max-height:560px"><table><thead><tr><th>اسم الطالب</th>${cols.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('')}<th>الخصم</th><th>الإجمالي</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td><strong>${escapeHtml(r.s?.name||'—')}</strong></td>${cols.map(c=>`<td>${Number(r.vals[c.type+'|'+c.q]||0).toLocaleString(undefined,{maximumFractionDigits:2})}</td>`).join('')}<td>${r.disc.toLocaleString(undefined,{maximumFractionDigits:2})}</td><td><strong>${r.total.toLocaleString(undefined,{maximumFractionDigits:2})}</strong></td></tr>`).join('')||`<tr><td colspan="${cols.length+3}" class="muted">لا توجد توزيعات فعلية خلال الفترة المحددة.</td></tr>`}</tbody><tfoot><tr><th>الإجمالي</th>${cols.map(c=>`<th>${rows.reduce((x,r)=>x+Number(r.vals[c.type+'|'+c.q]||0),0).toLocaleString(undefined,{maximumFractionDigits:2})}</th>`).join('')}<th>${grandDisc.toLocaleString()}</th><th>${grand.toLocaleString()}</th></tr></tfoot></table></div>`;
+}
+function renderNotDistributedReport(){
+  const body=document.getElementById('notDistributedReportBody'); if(!body)return;
+  const from=document.getElementById('ndf')?.value||'',to=document.getElementById('ndt')?.value||'';
+  if(from&&to&&from>to){body.innerHTML='<p class="warn">تاريخ البداية يجب أن يكون قبل تاريخ النهاية.</p>';return}
+  const during=new Set(periodAllocations(from,to).map(a=>String(a.studentId)));
+  const rows=D.students.filter(s=>s.active!==false&&!during.has(String(s.ser))).map(s=>{
+    const alloc=(D.allocations||[]).filter(a=>String(a.studentId)===String(s.ser));
+    const byQ=[1,2,3].map(q=>alloc.filter(a=>Number(a.installmentId)===q).reduce((x,a)=>x+Number(a.amount||0),0));
+    return {s,byQ,total:alloc.reduce((x,a)=>x+Number(a.amount||0),0)};
+  });
+  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>عدد الطلبة غير الموزع عليهم</label><div class="big">${rows.length.toLocaleString()}</div></div><div><label>إجمالي الطلبة</label><div class="big">${D.students.filter(s=>s.active!==false).length.toLocaleString()}</div></div></div>
+  <div class="scroll" style="max-height:560px"><table><thead><tr><th>اسم الطالب</th><th>المرحلة</th><th>الموزع سابقًا ق1</th><th>الموزع سابقًا ق2</th><th>الموزع سابقًا ق3</th><th>إجمالي الموزع سابقًا</th><th>خلال الفترة</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${escapeHtml(r.s.name||'—')}</strong></td><td>${escapeHtml(r.s.grade||'—')}</td>${r.byQ.map(v=>`<td>${v.toLocaleString()}</td>`).join('')}<td>${r.total.toLocaleString()}</td><td>0 ج</td></tr>`).join('')||'<tr><td colspan="7" class="muted">كل الطلبة حصلوا على توزيع خلال الفترة المحددة.</td></tr>'}</tbody></table></div>`;
+}
+function exportPeriodDistributionExcel(){
+  const from=document.getElementById('rdf')?.value||'',to=document.getElementById('rdt')?.value||'',alloc=periodAllocations(from,to),cols=reportMatrixColumns(),map={};
+  alloc.forEach(a=>{const id=String(a.studentId),s=getStudent(id);if(!map[id])map[id]={s,vals:{},disc:0,total:0};map[id].total+=Number(a.amount||0);map[id].disc+=Number(a.discount||0);Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{const k=type+'|'+a.installmentId;map[id].vals[k]=(map[id].vals[k]||0)+Number(v||0);});});
+  const rows=Object.values(map).map(r=>[r.s?.name||'',r.s?.code||r.s?.ser||'',r.s?.grade||'',...cols.map(c=>r.vals[c.type+'|'+c.q]||0),r.disc,r.total]);
+  downloadExcelXml('تقرير_التوزيع_خلال_الفترة.xls',[{name:'التوزيع',headers:['اسم الطالب','كود الطالب','المرحلة',...cols.map(c=>c.label),'الخصم','الإجمالي'],rows}]);
+}
+function exportNotDistributedExcel(){
+  const from=document.getElementById('ndf')?.value||'',to=document.getElementById('ndt')?.value||'',during=new Set(periodAllocations(from,to).map(a=>String(a.studentId)));
+  const rows=D.students.filter(s=>s.active!==false&&!during.has(String(s.ser))).map(s=>{const a=(D.allocations||[]).filter(x=>String(x.studentId)===String(s.ser));return [s.name||'',s.code||s.ser||'',s.grade||'',...[1,2,3].map(q=>a.filter(x=>Number(x.installmentId)===q).reduce((x,y)=>x+Number(y.amount||0),0)),a.reduce((x,y)=>x+Number(y.amount||0),0),0];});
+  downloadExcelXml('الطلبة_غير_الموزع_عليهم.xls',[{name:'غير موزع',headers:['اسم الطالب','كود الطالب','المرحلة','سابقًا ق1','سابقًا ق2','سابقًا ق3','إجمالي سابقًا','خلال الفترة'],rows}]);
+}
+function outputActionsHtml(targetId,pdfName,excelHandler){
+  return `<div class="output-actions">
+    <button class="alt small-btn btn-print" onclick="printReport('${targetId}')">🖨️ طباعة</button>
+    <button class="alt small-btn btn-pdf" onclick="downloadReportPDF('${targetId}','${pdfName}')">📄 تحميل PDF</button>
+    <button class="alt small-btn btn-excel" onclick="${excelHandler}">📥 تحميل Excel</button>
+  </div>`;
+}
+
+async function ensureJsPDF(){
+  if(window.jspdf && window.jspdf.jsPDF)return true;
+  return new Promise(resolve=>{
+    const sc=document.createElement('script');
+    sc.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    sc.onload=()=>resolve(!!(window.jspdf&&window.jspdf.jsPDF));
+    sc.onerror=()=>resolve(false);
+    document.head.appendChild(sc);
+  });
+}
+async function downloadReportPDF(id,filename){
+  const src=document.getElementById(id); if(!src)return;
+  const ok=await ensureJsPDF();
+  if(!ok){
+    alert('تعذر تحميل مكتبة PDF. سيتم فتح شاشة الطباعة، ويمكنك اختيار Save as PDF.');
+    printReport(id); return;
+  }
+  // PDF export is generated from a clean print container.
+  const frame=document.getElementById('pdfFrame')||document.body.appendChild(Object.assign(document.createElement('div'),{id:'pdfFrame'}));
+  frame.innerHTML=src.innerHTML;
+  frame.style.cssText='position:fixed;left:-10000px;top:0;width:1100px;background:#fff;padding:30px;direction:rtl;font-family:Arial;display:block';
+  const pdf=new jspdf.jsPDF({orientation:'p',unit:'mm',format:'a4'});
+  // jsPDF's HTML renderer handles Latin/English reliably; Arabic support depends on the
+  // browser/font environment. The report remains available through the print fallback.
+  await pdf.html(frame,{margin:[10,10,10,10],autoPaging:'text',html2canvas:{scale:0.8,useCORS:true}});
+  pdf.save(filename+'.pdf');
+  frame.remove();
+}
+async function downloadStudentPDF(id){
+  openStudentModal(id);
+  await new Promise(r=>setTimeout(r,50));
+  await downloadReportPDF('studentModal','بيان_تحصيل_'+(getStudent(id)?.name||'طالب'));
+}
+
+function printReport(id){
+  const src=document.getElementById(id);
+  if(!src)return;
+  const frame=document.getElementById('printFrame')||document.body.appendChild(Object.assign(document.createElement('div'),{id:'printFrame'}));
+  frame.innerHTML=src.innerHTML;
+  window.print();
+  setTimeout(()=>{frame.innerHTML='';},500);
+}
+function exportDistributionReportExcel(){
+  const g=document.getElementById('rg')?.value||'',q=document.getElementById('rq')?.value||'',t=document.getElementById('rt')?.value||'';
+  const rows=[];
+  (D.allocations||[]).forEach(a=>{
+    const s=getStudent(a.studentId);
+    if(g&&s?.grade!==g)return;
+    if(q&&String(a.installmentId)!==q)return;
+    Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{
+      if(t&&type!==t)return;
+      rows.push([a.operationId,a.date,s?.code||s?.ser||a.studentId,s?.name||a.studentName,s?.grade||'—',a.installmentName,type,v]);
+    });
+  });
+  downloadExcelXml('ملخص_التوزيع_2026_2027.xls',[
+    {name:'التوزيع',headers:['رقم العملية','التاريخ','كود الطالب','اسم الطالب','المرحلة','القسط','نوع المصروف','المبلغ'],rows}
+  ]);
+}
+function exportStudentCollectionsExcel(){
+  const id=document.getElementById('collectionStudent')?.value;
+  const s=getStudent(id); if(!s){alert('اختار الطالب أولًا.');return;}
+  const rows=[];
+  (D.allocations||[]).filter(a=>String(a.studentId)===String(id)).forEach(a=>{
+    Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{
+      rows.push([a.date||'—',a.installmentName||'—',type,v,a.operationId||'—']);
+    });
+  });
+  downloadExcelXml('تحصيلات_'+(s.name||'طالب')+'.xls',[
+    {name:'بيان التحصيلات',headers:['التاريخ','القسط','نوع المصروف','المبلغ','رقم العملية'],rows}
+  ]);
+}
+function printStudent(id){
+  openStudentModal(id);
+  setTimeout(()=>printReport('studentModal'),100);
+}
+function exportSingleStudentExcel(id){
+  const s=getStudent(id); if(!s)return;
+  const rows=[];
+  (D.allocations||[]).filter(a=>String(a.studentId)===String(id)).forEach(a=>{
+    Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{
+      rows.push([a.date||'—',a.installmentName||'—',type,v,a.operationId||'—']);
+    });
+  });
+  downloadExcelXml('بيان_تحصيل_'+(s.name||'طالب')+'.xls',[
+    {name:'بيان الطالب',headers:['التاريخ','القسط','نوع المصروف','المبلغ','رقم العملية'],rows}
+  ]);
+}
+
+ensureStudentData();
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',()=>show('home'));}else{show('home');}
+apiLoad();
+
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('nav button[data-module]').forEach(btn=>{
+    btn.addEventListener('click',function(e){
+      e.preventDefault();
+      show(this.dataset.module);
+    });
+  });
+});
+</script>
+<script>
+/* ===================== Student Import (Excel) — independent of the Distribution Engine =====================
+   Flow: downloadStudentTemplate() -> user fills Excel -> handleImportFile() (parse + validate + preview)
+         -> commitImport() (server-side merge into STUDENTS of the current academic year only).
+   Reads D.students / D.stages (current year, from YEAR_SETTINGS) and studentHasDistribution(); never touches allocations. */
+var IMPORT_HEADERS=['Student Code','Student Name','Stage','Active'];
+var IMPORT_MAX_ROWS=5000;
+var IMPORT_STATE=null;
+
+/* ---------- tiny xlsx writer (zip "stored" + minimal OOXML) — used only for the official template ---------- */
+var CRC_TABLE=(function(){var t=[],c;for(var n=0;n<256;n++){c=n;for(var k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+function crc32(bytes){var c=0xFFFFFFFF;for(var i=0;i<bytes.length;i++)c=CRC_TABLE[(c^bytes[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function utf8(str){return new TextEncoder().encode(str);}
+function zipStore(files){ // files: [{name, data(Uint8Array)}]
+  var parts=[],central=[],offset=0;
+  function u16(v){return [v&255,(v>>8)&255];} function u32(v){return [v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255];}
+  files.forEach(function(f){
+    var name=utf8(f.name),crc=crc32(f.data),size=f.data.length;
+    var local=[].concat(u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(0),u16(0),u32(crc),u32(size),u32(size),u16(name.length),u16(0));
+    parts.push(new Uint8Array(local),name,f.data);
+    central.push([[].concat(u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0),u32(crc),u32(size),u32(size),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset)),name]);
+    offset+=local.length+name.length+size;
+  });
+  var cdStart=offset,cdSize=0;
+  central.forEach(function(c){var h=new Uint8Array(c[0]);parts.push(h,c[1]);cdSize+=h.length+c[1].length;});
+  parts.push(new Uint8Array([].concat(u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),u32(cdSize),u32(cdStart),u16(0))));
+  var total=parts.reduce(function(x,p){return x+p.length;},0),out=new Uint8Array(total),pos=0;
+  parts.forEach(function(p){out.set(p,pos);pos+=p.length;});
+  return out;
+}
+function xmlEsc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function colLetter(i){var s='';i++;while(i>0){var m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return s;}
+function cellXml(r,c,v,style){
+  var ref=colLetter(c)+r, st=style?' s="'+style+'"':'';
+  if(v===true||v===false) return '<c r="'+ref+'" t="b"'+st+'><v>'+(v?1:0)+'</v></c>';
+  if(typeof v==='number'&&isFinite(v)) return '<c r="'+ref+'"'+st+'><v>'+v+'</v></c>';
+  if(v==null||v==='') return style?'<c r="'+ref+'"'+st+'/>':'';
+  return '<c r="'+ref+'" t="inlineStr"'+st+'><is><t xml:space="preserve">'+xmlEsc(v)+'</t></is></c>';
+}
+function sheetXml(opts){ // {rows:[[...]], headerStyle, bodyStyle, cols:[widths], rtl, protect, validations:[xml], freeze}
+  var rows=opts.rows.map(function(row,i){var r=i+1;return '<row r="'+r+'">'+row.map(function(v,c){return cellXml(r,c,v,i===0?opts.headerStyle:opts.bodyStyle);}).join('')+'</row>';}).join('');
+  var cols=(opts.cols||[]).map(function(w,i){return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"'+(opts.bodyStyle?' style="'+opts.bodyStyle+'"':'')+'/>';}).join('');
+  var view='<sheetViews><sheetView workbookViewId="0"'+(opts.rtl?' rightToLeft="1"':'')+(opts.tab?' tabSelected="1"':'')+'>'+(opts.freeze?'<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>':'')+'</sheetView></sheetViews>';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+view+
+    (cols?'<cols>'+cols+'</cols>':'')+'<sheetData>'+rows+'</sheetData>'+
+    (opts.protect?'<sheetProtection sheet="1" objects="1" scenarios="1" formatCells="0" formatColumns="0" formatRows="0" insertRows="0" deleteRows="0" sort="0" autoFilter="0"/>':'')+
+    (opts.validations&&opts.validations.length?'<dataValidations count="'+opts.validations.length+'">'+opts.validations.join('')+'</dataValidations>':'')+
+    '</worksheet>';
+}
+function buildStudentTemplateXlsx(state){
+  var stages=(state.stages||[]).slice().sort();
+  var students=(state.students||[]).slice().sort(function(a,b){return Number(a.ser)-Number(b.ser);});
+  var dataRows=students.map(function(s){return [String(s.code||s.ser),s.name||'',s.grade||'',s.active!==false];});
+  var main=[IMPORT_HEADERS].concat(dataRows);
+  var lastRow=IMPORT_MAX_ROWS+1, lastStage=stages.length+1;
+  var validations=[
+    '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Stage" error="اختر مرحلة من قائمة المراحل المعتمدة للسنة الحالية" promptTitle="Stage" prompt="اختر المرحلة من القائمة" sqref="C2:C'+lastRow+'"><formula1>Stages!$A$2:$A$'+lastStage+'</formula1></dataValidation>',
+    '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Active" error="القيمة يجب أن تكون TRUE أو FALSE" prompt="TRUE = نشط، FALSE = غير نشط" sqref="D2:D'+lastRow+'"><formula1>"TRUE,FALSE"</formula1></dataValidation>'
+  ];
+  var instr=[['تعليمات ملء نموذج الطلبة — نظام تحصيلات الطلبة'],[''],
+    ['العام الدراسي',state.academicYear||''],[''],
+    ['1','لا تغيّر أسماء الأعمدة في الصف الأول من ورقة Students (الصف محمي).'],
+    ['2','Student Code: كود الطالب — فريد لكل طالب. كود موجود = تحديث بيانات الطالب، كود جديد = إضافة طالب.'],
+    ['3','Student Name: اسم الطالب — إلزامي.'],
+    ['4','Stage: المرحلة — اختر من القائمة المنسدلة فقط (المراحل المعتمدة للسنة الحالية في ورقة Stages).'],
+    ['5','Active: TRUE = نشط، FALSE = غير نشط. لا يمكن تعطيل طالب له توزيعات مالية عبر الاستيراد.'],
+    ['6','الصفوف الفارغة تُتجاهل. الطالب الموجود في النظام وغير الموجود في الملف لا يُحذف.'],
+    ['7','بعد الرفع يعرض النظام مراجعة وملخصًا، ولا يتم أي حفظ قبل الضغط على "اعتماد واستيراد".'],
+    ['8','الاستيراد يخص السنة الدراسية الحالية فقط.']];
+  var files=[
+    {name:'[Content_Types].xml',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>')},
+    {name:'_rels/.rels',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')},
+    {name:'xl/workbook.xml',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Students" sheetId="1" r:id="rId1"/><sheet name="Stages" sheetId="2" r:id="rId2"/><sheet name="Instructions" sheetId="3" r:id="rId3"/></sheets></workbook>')},
+    {name:'xl/_rels/workbook.xml.rels',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>')},
+    {name:'xl/styles.xml',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF123166"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyProtection="1"><protection locked="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyProtection="1"><protection locked="0"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')},
+    {name:'xl/worksheets/sheet1.xml',data:utf8(sheetXml({rows:main,headerStyle:1,bodyStyle:2,cols:[18,42,14,12],protect:true,validations:validations,freeze:true,tab:true}))},
+    {name:'xl/worksheets/sheet2.xml',data:utf8(sheetXml({rows:[['Stage']].concat(stages.map(function(g){return [g];})),headerStyle:1,cols:[16]}))},
+    {name:'xl/worksheets/sheet3.xml',data:utf8(sheetXml({rows:instr,headerStyle:1,cols:[10,110],rtl:true}))}
+  ];
+  return zipStore(files);
+}
+function downloadStudentTemplate(){
+  if(!D||!(D.stages||[]).length){alert('لم يتم تحميل مراحل السنة الحالية بعد.');return;}
+  var bytes=buildStudentTemplateXlsx(D);
+  var blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Students_Master_'+String(D.academicYear||'').replace(/\//g,'_')+'.xlsx';a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+}
+
+/* ---------- validation (pure; also mirrored on the server) ---------- */
+function normStageKey(g){return String(g==null?'':g).replace(/\s+/g,'').trim();}
+function parseActiveCell(v){
+  if(v===true||v===false) return v;
+  var s=String(v==null?'':v).trim().toLowerCase();
+  if(s===''||s==='true'||s==='1'||s==='yes'||s==='نشط') return true;
+  if(s==='false'||s==='0'||s==='no'||s==='غير نشط') return false;
+  return null;
+}
+function validateImportRows(rows, state){
+  var res={headerError:null,total:0,valid:[],errors:[],adds:0,updates:0,unchanged:0};
+  if(!rows||!rows.length){res.headerError='الملف فارغ.';return res;}
+  var hdr=(rows[0]||[]).slice(0,4).map(function(h){return String(h==null?'':h).trim().toLowerCase();});
+  var bad=IMPORT_HEADERS.filter(function(h,i){return hdr[i]!==h.toLowerCase();});
+  if(bad.length){res.headerError='أسماء الأعمدة غير مطابقة للنموذج. المطلوب: '+IMPORT_HEADERS.join(' | ');return res;}
+  var stageByKey={}; (state.stages||[]).forEach(function(g){stageByKey[normStageKey(g)]=g;});
+  var byCode={}; (state.students||[]).forEach(function(s){byCode[String(s.code||s.ser).trim()]=s;});
+  var seen={};
+  for(var i=1;i<rows.length;i++){
+    var r=rows[i]||[], code=String(r[0]==null?'':r[0]).trim(), name=String(r[1]==null?'':r[1]).trim(), stage=String(r[2]==null?'':r[2]).trim(), act=r[3];
+    if(code===''&&name===''&&stage===''&&(act==null||String(act).trim()==='')) continue; // blank row
+    res.total++;
+    var rowNo=i+1, errs=[];
+    if(code==='') errs.push('Student Code فارغ');
+    if(name==='') errs.push('Student Name فارغ');
+    if(code!==''&&seen[code]) errs.push('Student Code مكرر داخل الملف (الصف '+seen[code]+')');
+    var stageKey=normStageKey(stage), stageName=stageByKey[stageKey];
+    if(stage===''||!stageName) errs.push('Stage غير موجودة ضمن مراحل السنة الحالية: "'+stage+'"');
+    var active=parseActiveCell(act); if(active===null) errs.push('Active يجب أن تكون TRUE أو FALSE');
+    var existing=code!==''?byCode[code]:null, action='add';
+    if(existing){
+      if(active===false&&existing.active!==false&&studentHasDistribution(existing.ser)) errs.push('لا يمكن تعطيل طالب له توزيعات مالية عبر الاستيراد');
+      action=(existing.name===name&&existing.grade===stageName&&(existing.active!==false)===active)?'unchanged':'update';
+    }
+    if(code!=='')seen[code]=rowNo;
+    if(errs.length){res.errors.push({row:rowNo,code:code,name:name,reason:errs.join(' — ')});continue;}
+    res.valid.push({row:rowNo,code:code,name:name,grade:stageName,active:active,action:action,ser:existing?existing.ser:null});
+    if(action==='add')res.adds++;else if(action==='update')res.updates++;else res.unchanged++;
+  }
+  return res;
+}
+
+/* ---------- UI: upload → preview → commit ---------- */
+function handleImportFile(input){
+  var file=input.files&&input.files[0]; if(!file)return;
+  var out=document.getElementById('importOutput');
+  if(!/\.xlsx$/i.test(file.name)){out.innerHTML='<p class="warn">مسموح برفع ملفات .xlsx فقط.</p>';input.value='';return;}
+  if(typeof XLSX==='undefined'){out.innerHTML='<p class="warn">مكتبة قراءة Excel غير متاحة (تحقق من الاتصال بالإنترنت).</p>';input.value='';return;}
+  out.innerHTML='<p class="muted">جارٍ قراءة الملف والتحقق...</p>';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      var ws=wb.Sheets['Students']||wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+      IMPORT_STATE={fileName:file.name,result:validateImportRows(rows,D)};
+      renderImportPreview();
+    }catch(err){out.innerHTML='<p class="warn">تعذر قراءة الملف: '+escapeHtml(err.message||err)+'</p>';}
+    input.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function renderImportPreview(){
+  var out=document.getElementById('importOutput'), R=IMPORT_STATE&&IMPORT_STATE.result; if(!R)return;
+  if(R.headerError){out.innerHTML='<p class="warn">'+escapeHtml(R.headerError)+'</p>';return;}
+  var fmt=function(n){return Number(n).toLocaleString();};
+  var actionLabel={add:'إضافة',update:'تحديث',unchanged:'بدون تغيير'};
+  var changes=R.valid.filter(function(v){return v.action!=='unchanged';});
+  var previewRows=changes.slice(0,300);
+  out.innerHTML=
+    '<div class="muted" style="margin-bottom:6px">الملف: '+escapeHtml(IMPORT_STATE.fileName)+' — العام الدراسي: '+escapeHtml(D.academicYear||'')+'</div>'+
+    '<div class="grid">'+
+      '<div><label>إجمالي الصفوف</label><div class="big">'+fmt(R.total)+'</div></div>'+
+      '<div><label>صالح</label><div class="big ok">'+fmt(R.valid.length)+'</div></div>'+
+      '<div><label>أخطاء</label><div class="big" style="color:#a52b2b">'+fmt(R.errors.length)+'</div></div>'+
+      '<div><label>إضافات جديدة</label><div class="big">'+fmt(R.adds)+'</div></div>'+
+      '<div><label>تعديلات</label><div class="big">'+fmt(R.updates)+'</div></div>'+
+      '<div><label>بدون تغيير</label><div class="big">'+fmt(R.unchanged)+'</div></div>'+
+    '</div>'+
+    (R.errors.length?'<h4 style="margin:12px 0 4px">❌ أخطاء يجب تصحيحها في الملف</h4><div class="scroll" style="max-height:260px"><table><thead><tr><th>الصف</th><th>الكود</th><th>الاسم</th><th>السبب</th></tr></thead><tbody>'+
+      R.errors.map(function(e){return '<tr><td>'+e.row+'</td><td>'+escapeHtml(e.code)+'</td><td>'+escapeHtml(e.name)+'</td><td style="color:#a52b2b">'+escapeHtml(e.reason)+'</td></tr>';}).join('')+'</tbody></table></div>':'')+
+    (changes.length?'<h4 style="margin:12px 0 4px">📋 مراجعة التغييرات ('+fmt(changes.length)+(changes.length>300?' — يُعرض أول 300':'')+')</h4><div class="scroll" style="max-height:320px"><table><thead><tr><th>الصف</th><th>الإجراء</th><th>الكود</th><th>الاسم</th><th>المرحلة</th><th>الحالة</th></tr></thead><tbody>'+
+      previewRows.map(function(v){return '<tr><td>'+v.row+'</td><td class="'+(v.action==='add'?'ok':'')+'">'+actionLabel[v.action]+'</td><td>'+escapeHtml(v.code)+'</td><td>'+escapeHtml(v.name)+'</td><td>'+escapeHtml(v.grade)+'</td><td>'+(v.active?'نشط':'غير نشط')+'</td></tr>';}).join('')+'</tbody></table></div>':'<p class="muted" style="margin-top:10px">لا توجد إضافات أو تعديلات في هذا الملف.</p>')+
+    '<div class="output-actions" style="margin-top:12px">'+
+      (changes.length?'<button onclick="commitImport()">💾 اعتماد واستيراد ('+fmt(changes.length)+')</button>':'')+
+      '<button class="alt small-btn" onclick="cancelImport()">إلغاء</button>'+
+    '</div>'+
+    (R.errors.length&&changes.length?'<div class="muted" style="margin-top:6px">الصفوف التي بها أخطاء لن تُستورد؛ يمكنك اعتماد الصفوف الصالحة الآن وتصحيح الباقي لاحقًا.</div>':'');
+}
+function cancelImport(){IMPORT_STATE=null;var out=document.getElementById('importOutput');if(out)out.innerHTML='';}
+function commitImport(){
+  var R=IMPORT_STATE&&IMPORT_STATE.result; if(!R)return;
+  var changes=R.valid.filter(function(v){return v.action!=='unchanged';}); if(!changes.length)return;
+  if(!confirm('سيتم إضافة '+R.adds+' طالب وتحديث '+R.updates+' طالب في العام '+D.academicYear+'. هل تريد المتابعة؟'))return;
+  var out=document.getElementById('importOutput'); out.innerHTML='<p class="muted">جارٍ الاستيراد...</p>';
+  api('importStudents',{academicYear:D.academicYear,rows:changes.map(function(v){return {code:v.code,name:v.name,grade:v.grade,active:v.active};})}).then(function(res){
+    applyState(res.state); IMPORT_STATE=null; studentsView();
+    var s=res.summary||{};
+    out.innerHTML='<p class="ok">✅ تم الاستيراد: '+Number(s.added||0)+' إضافة، '+Number(s.updated||0)+' تحديث'+(s.rejected&&s.rejected.length?'، '+s.rejected.length+' مرفوض من الخادم':'')+'.</p>'+
+      (s.rejected&&s.rejected.length?'<div class="scroll" style="max-height:200px"><table><thead><tr><th>الكود</th><th>السبب</th></tr></thead><tbody>'+s.rejected.map(function(r){return '<tr><td>'+escapeHtml(r.code)+'</td><td>'+escapeHtml(r.reason)+'</td></tr>';}).join('')+'</tbody></table></div>':'');
+  }).catch(function(err){out.innerHTML='<p class="warn">فشل الاستيراد: '+escapeHtml(err.message||err)+'</p>';});
+}
+
+</script>
+<script>
+/* ===================== Bulk Hard Delete (students page) — explicit user command with confirmation =====================
+   Selection lives in SELECTED (survives re-renders of the list). Deletion is executed on the server
+   (action 'deleteStudentsHard') for the CURRENT academic year only; the UI then reloads state from the server. */
+var SELECTED=new Set();
+function toggleSelect(cb){ if(cb.checked)SELECTED.add(String(cb.value)); else SELECTED.delete(String(cb.value)); syncSelectAll(); }
+function toggleSelectAll(checked){
+  document.querySelectorAll('#sr .selStudent').forEach(function(cb){ cb.checked=checked; if(checked)SELECTED.add(String(cb.value)); else SELECTED.delete(String(cb.value)); });
+  syncSelectAll();
+}
+function syncSelectAll(){
+  var boxes=document.querySelectorAll('#sr .selStudent'), all=document.getElementById('selAll'), cnt=document.getElementById('selCount');
+  if(all){ var visible=boxes.length, checked=0; boxes.forEach(function(b){ if(b.checked)checked++; }); all.checked=visible>0&&checked===visible; all.indeterminate=checked>0&&checked<visible; }
+  if(cnt) cnt.textContent=SELECTED.size?('('+SELECTED.size+')'):'';
+}
+function confirmDeleteSelected(){
+  var ids=Array.from(SELECTED).filter(function(id){ return D.students.some(function(s){return String(s.ser)===id;}); });
+  if(!ids.length){ alert('لم يتم تحديد أي طالب.'); return; }
+  openDeleteModal(ids,false);
+}
+function confirmDeleteAll(){
+  if(!D.students.length){ alert('لا يوجد طلاب في العام الحالي.'); return; }
+  openDeleteModal(D.students.map(function(s){return String(s.ser);}),true);
+}
+function openDeleteModal(ids,isAll){
+  var m=document.getElementById('deleteModal'); m.dataset.ids=JSON.stringify(ids); m.dataset.all=isAll?'1':'';
+  document.getElementById('deleteModalText').innerHTML=
+    '<p><b>تحذير:</b><br>سيتم حذف '+(isAll?'<b>جميع الطلاب</b> في العام الدراسي '+escapeHtml(D.academicYear||'')+' ':'الطلاب المحددين ')+'وجميع البيانات المرتبطة بهم (التوزيعات والخصومات) من النظام والتقارير. هذا الحذف نهائي ولا يمكن التراجع عنه.</p>'+
+    '<p>عدد الطلاب '+(isAll?'الذين سيتم حذفهم':'المحددين')+': <span class="big" style="font-size:22px">'+Number(ids.length).toLocaleString()+'</span></p>'+
+    '<p>هل أنت متأكد؟</p>';
+  m.classList.remove('hidden');
+}
+function closeDeleteModal(){ document.getElementById('deleteModal').classList.add('hidden'); }
+function executeHardDelete(){
+  var m=document.getElementById('deleteModal'), ids=JSON.parse(m.dataset.ids||'[]'), isAll=m.dataset.all==='1';
+  var btn=document.getElementById('deleteConfirmBtn'); btn.disabled=true; btn.textContent='جارٍ الحذف...';
+  api('deleteStudentsHard',{academicYear:D.academicYear, ids:ids, all:isAll}).then(function(res){
+    applyState(res.state); SELECTED.clear(); closeDeleteModal();
+    studentsView(); home();
+    ['renderDistributionSummary','renderDistributionSummaryReport','renderPeriodDistributionReport','renderNotDistributedReport','renderStudentCollectionReport','populateReportStudentSelect'].forEach(function(f){ try{ if(typeof window[f]==='function') window[f](); }catch(e){} });
+    var s=res.summary||{};
+    alert('تم الحذف النهائي: '+Number(s.students||0)+' طالب، '+Number(s.lines||0)+' سطر توزيع، '+Number(s.discounts||0)+' خصم.');
+  }).catch(function(err){ alert('فشل الحذف: '+(err.message||err)); }).finally(function(){ btn.disabled=false; btn.textContent='حذف نهائي'; });
+}
+
+</script></body></html>
