@@ -243,7 +243,7 @@ th{font-weight:600}table{font-size:14px}
   <button class="small-btn danger" onclick="confirmDeleteSelected()">🗑️ حذف المحدد <span id="selCount"></span></button>
   <button class="alt small-btn" onclick="confirmDeleteAll()">🗑️ حذف جميع الطلاب</button>
 </div><div class="grid" style="grid-template-columns:minmax(220px,2fr) minmax(160px,1fr);gap:8px"><div><label>بحث</label><input id="sq" oninput="studentsView()"></div><div><label>المرحلة</label><select id="sg" onchange="studentsView()"><option value="">كل المراحل</option></select></div></div>
-<div class="scroll" style="max-height:420px"><table style="margin-top:6px"><thead><tr><th style="white-space:nowrap"><input type="checkbox" id="selAll" onchange="toggleSelectAll(this.checked)" style="width:auto;margin:0 0 0 4px;vertical-align:middle"> تحديد الكل</th><th>م</th><th>اسم الطالب</th><th>المرحلة</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="sr"></tbody></table></div>
+<div class="scroll" style="max-height:420px"><table style="margin-top:6px"><thead><tr><th style="white-space:nowrap"><input type="checkbox" id="selAll" onchange="toggleSelectAll(this.checked)" style="width:auto;margin:0 0 0 4px;vertical-align:middle"> تحديد الكل</th><th>م</th><th>اسم الطالب</th><th>الكود</th><th>المرحلة</th><th>الفصل</th><th>القسم</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="sr"></tbody></table></div>
 <div id="studentsPager" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px"></div></div>
 <div class="card" id="importCard"><h3>📥 استيراد بيانات الطلبة من Excel</h3>
 <div class="muted" style="margin:-2px 0 6px">تحميل النموذج ← ملء Excel ← رفع ← مراجعة ← اعتماد. الأعمدة: Student Code، Student Name، Stage، Active. لا يتم أي حفظ قبل الاعتماد، والاستيراد يخص العام الدراسي الحالي فقط.</div>
@@ -392,8 +392,15 @@ function installmentTargetByType(inst){
 /* BR-8: DISCOUNTS is the source of truth; date = run date. */
 function discountsFor(pred){return (D.discounts||[]).filter(pred||(()=>true));}
 function sumDiscounts(pred){return money2(discountsFor(pred).reduce((x,d)=>x+money2(d.amount),0));}
-async function api(action,payload){
-  const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload:payload||{}})});
+async function api(action,payload,opts){
+  /* opts.timeoutMs (used by the initial load only) aborts a request that never settles; without it fetch waits
+     for the browser's own limit (minutes), which leaves the loading screen up with no recovery. */
+  const ms=opts&&opts.timeoutMs, ctl=(ms&&typeof AbortController!=='undefined')?new AbortController():null;
+  const timer=ctl?setTimeout(()=>ctl.abort(),ms):null;
+  let r;
+  try{ r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload:payload||{}}),signal:ctl?ctl.signal:undefined}); }
+  catch(e){ if(ctl&&ctl.signal.aborted) throw new Error('انتهت مهلة الاتصال بالخادم ('+Math.round(ms/1000)+' ثانية) دون رد.'); throw e; }
+  finally{ if(timer) clearTimeout(timer); }
   const text=await r.text(); let j;
   try{ j=JSON.parse(text); }
   catch(e){ throw new Error(describeNonJsonResponse(r,text)); }
@@ -414,7 +421,7 @@ function applyState(state){D=state;if(!Array.isArray(D.discounts))D.discounts=[]
 function populateStageFilter(){const el=document.getElementById('sg');if(!el)return;const cur=el.value;el.innerHTML='<option value="">كل المراحل</option>'+(D.stages||[]).map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');el.value=(D.stages||[]).includes(cur)?cur:'';}
 function apiError(err){alert('خطأ في الاتصال بالخادم: '+(err.message||err));}
 /* Initial load: loading state (no fake zeros) + bounded automatic retry (3 attempts) + explicit error state with manual retry. */
-const INITIAL_LOAD_RETRIES=3, INITIAL_LOAD_DELAYS_MS=[1500,3000];
+const INITIAL_LOAD_RETRIES=3, INITIAL_LOAD_DELAYS_MS=[1500,3000], INITIAL_LOAD_TIMEOUT_MS=20000;
 let APP_LOADED=false;
 function setLoadingState(mode,msg){
   const ov=document.getElementById('loadingOverlay'),t=document.getElementById('loadingTitle'),x=document.getElementById('loadingText'),a=document.getElementById('loadingActions');
@@ -429,7 +436,7 @@ async function apiLoad(){
   for(let attempt=1;attempt<=INITIAL_LOAD_RETRIES;attempt++){
     setLoadingState('loading',attempt>1?`محاولة ${attempt} من ${INITIAL_LOAD_RETRIES}...`:undefined);
     try{
-      applyState(await api('load'));
+      applyState(await api('load',{},{timeoutMs:INITIAL_LOAD_TIMEOUT_MS}));
       APP_LOADED=true;
       show(document.querySelector('nav button[data-module].active')?.getAttribute('data-module')||'home');
       setLoadingState('loaded');
@@ -503,7 +510,7 @@ function studentsView(keepPage){
   let q=(document.getElementById('sq').value||'').toLowerCase(),
       g=document.getElementById('sg').value;
   let all=D.students.filter(s=>
-    (!q||String(s.name||'').toLowerCase().includes(q)||String(s.code||s.ser||'').toLowerCase().includes(q)) &&
+    (!q||String(s.name||'').toLowerCase().includes(q)||String(s.code||s.ser||'').toLowerCase().includes(q)||String(s.className||'').toLowerCase().includes(q)||String(s.department||'').toLowerCase().includes(q)) &&
     (!g||s.grade===g)
   );
   const pages=Math.max(1,Math.ceil(all.length/STUDENTS_PAGE_SIZE));
@@ -526,7 +533,10 @@ function studentsView(keepPage){
       <td><input type="checkbox" class="selStudent" value="${s.ser}" ${SELECTED.has(String(s.ser))?'checked':''} onchange="toggleSelect(this)" style="width:auto;margin:0"></td>
       <td>${s.ser}</td>
       <td><button class="student-name-btn" onclick="openStudentModal('${String(s.ser).replace(/'/g,"\\'")}')">${escapeHtml(s.name||'')}</button></td>
+      <td>${escapeHtml(String(s.code||s.ser||''))}</td>
       <td>${escapeHtml(s.grade||'')}</td>
+      <td>${escapeHtml(s.className||'')}</td>
+      <td>${escapeHtml(s.department||'')}</td>
       <td class="${s.active===false?'status-inactive':'status-active'}">${status}</td>
       <td>
         <button class="small-btn alt" onclick="openStudentModal('${String(s.ser).replace(/'/g,"\\'")}')">عرض / تعديل</button>
@@ -563,7 +573,7 @@ function openStudentModal(id){
   const has=total>0;
 
   document.getElementById('studentModalTitle').textContent=s.name||'الطالب';
-  document.getElementById('studentModalMeta').textContent=`كود الطالب: ${s.code||s.ser} — المرحلة: ${s.grade||'—'} — الحالة: ${studentStatus(s)}`;
+  document.getElementById('studentModalMeta').textContent=`كود الطالب: ${s.code||s.ser} — المرحلة: ${s.grade||'—'} — الفصل: ${s.className||'—'} — القسم: ${s.department||'—'} — الحالة: ${studentStatus(s)}`;
 
   const typeRows=Object.entries(byInstType).flatMap(([inst,types])=>
     Object.entries(types).map(([type,v])=>`<tr><td>${escapeHtml(inst)}</td><td>${escapeHtml(type)}</td><td>${fmtMoney(v)} ج</td></tr>`)
@@ -821,14 +831,14 @@ function downloadExcelXml(filename, sheets){
 function exportStudentsExcel(){
   ensureStudentData();
   const rows=D.students.map(s=>[
-    s.ser,s.code||s.ser,s.name,s.grade,studentStatus(s),
+    s.ser,s.code||s.ser,s.name,s.grade,s.className||'',s.department||'',studentStatus(s),
     sumLines(a=>String(a.studentId)===String(s.ser))
   ]);
   downloadExcelXml('بيانات_الطلبة_2026_2027.xls',[
-    {name:'الطلبة',headers:['م','كود الطالب','اسم الطالب','المرحلة','الحالة','إجمالي الموزع'],rows},
-    {name:'توزيعات الطلبة',headers:['رقم العملية','التاريخ','كود الطالب','اسم الطالب','المرحلة','القسط','نوع المصروف','المبلغ'],rows:(D.allocations||[]).flatMap(a=>{
+    {name:'الطلبة',headers:['م','كود الطالب','اسم الطالب','المرحلة','الفصل','القسم','الحالة','إجمالي الموزع'],rows},
+    {name:'توزيعات الطلبة',headers:['رقم العملية','التاريخ','كود الطالب','اسم الطالب','المرحلة','الفصل','القسم','القسط','نوع المصروف','المبلغ'],rows:(D.allocations||[]).flatMap(a=>{
       const s=getStudent(a.studentId), b=allocationBreakdown(a);
-      return Object.entries(b).map(([type,v])=>[a.operationId,a.date,s?(s.code||s.ser):a.studentId,s?s.name:a.studentName,s?s.grade:'—',a.installmentName,type,v]);
+      return Object.entries(b).map(([type,v])=>[a.operationId,a.date,s?(s.code||s.ser):a.studentId,s?s.name:a.studentName,s?s.grade:'—',s?(s.className||'—'):'—',s?(s.department||'—'):'—',a.installmentName,type,v]);
     })}
   ]);
 }
@@ -847,7 +857,7 @@ function populateReportStudentSelect(filterText, autoSelectExact=true){
   });
 
   el.innerHTML='<option value="">اختار الطالب</option>'+
-    list.map(s=>`<option value="${escapeHtml(String(s.ser))}">${escapeHtml(s.name||'')} — ${escapeHtml(s.code||s.ser)} — ${escapeHtml(s.grade||'')}</option>`).join('');
+    list.map(s=>`<option value="${escapeHtml(String(s.ser))}">${escapeHtml(s.name||'')} — ${escapeHtml(s.code||s.ser)} — ${escapeHtml([s.grade,s.className,s.department].filter(Boolean).join(' / '))}</option>`).join('');
 
   // If the user entered an exact student code, select it and show details immediately.
   if(autoSelectExact && q){
@@ -933,7 +943,7 @@ function renderStudentCollectionReport(){
   const s=getStudent(id); if(!s){body.innerHTML='<p class="muted">الطالب غير موجود.</p>';return;}
   const rows=studentCollectionRows(id);
   const total=money2(rows.reduce((x,r)=>x+r[3],0)), disc=sumDiscounts(d=>String(d.studentId)===String(id));
-  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>الطالب</label><div class="big" style="font-size:18px">${escapeHtml(s.name||'—')}</div></div><div><label>إجمالي الموزع</label><div class="big">${fmtMoney(total)} ج</div></div><div><label>إجمالي الخصم</label><div class="big">${fmtMoney(disc)} ج</div></div></div>
+  body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>الطالب</label><div class="big" style="font-size:18px">${escapeHtml(s.name||'—')}</div><div class="muted">${escapeHtml(s.grade||'—')} — فصل ${escapeHtml(s.className||'—')} — ${escapeHtml(s.department||'—')}</div></div><div><label>إجمالي الموزع</label><div class="big">${fmtMoney(total)} ج</div></div><div><label>إجمالي الخصم</label><div class="big">${fmtMoney(disc)} ج</div></div></div>
   <div class="scroll" style="max-height:520px"><table><thead><tr><th>التاريخ</th><th>القسط</th><th>نوع المصروف</th><th>المبلغ</th><th>رقم العملية</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td>${escapeHtml(r[1])}</td><td>${escapeHtml(r[2])}</td><td>${fmtMoney(r[3])} ج</td><td>${escapeHtml(r[4])}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">لا توجد توزيعات لهذا الطالب.</td></tr>'}</tbody><tfoot><tr><th colspan="3">الإجمالي</th><th>${fmtMoney(total)} ج</th><th></th></tr></tfoot></table></div>`;
 }
 function distributionSummaryRows(){
@@ -989,8 +999,8 @@ function renderPeriodDistributionReport(){
   if(from&&to&&from>to){body.innerHTML='<p class="warn">تاريخ البداية يجب أن يكون قبل تاريخ النهاية.</p>';return}
   const {rows,cols,grand,grandDisc,distributedCount}=periodDistributionRows(from,to);
   body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>عدد الطلبة الذين استلموا توزيعًا</label><div class="big">${distributedCount.toLocaleString()}</div></div><div><label>إجمالي المبلغ الموزع</label><div class="big">${fmtMoney(grand)} ج</div></div><div><label>إجمالي الخصومات</label><div class="big">${fmtMoney(grandDisc)} ج</div></div></div>
-  <div class="scroll" style="max-height:560px"><table><thead><tr><th>اسم الطالب</th>${cols.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('')}<th>الخصم</th><th>الإجمالي</th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td><strong>${escapeHtml(r.name)}</strong></td>${cols.map(c=>`<td>${fmtMoney(r.vals[c.type+'|'+c.q]||0)}</td>`).join('')}<td>${fmtMoney(r.disc)}</td><td><strong>${fmtMoney(r.total)}</strong></td></tr>`).join('')||`<tr><td colspan="${cols.length+3}" class="muted">لا توجد توزيعات فعلية خلال الفترة المحددة.</td></tr>`}</tbody><tfoot><tr><th>الإجمالي</th>${cols.map(c=>`<th>${fmtMoney(rows.reduce((x,r)=>x+Number(r.vals[c.type+'|'+c.q]||0),0))}</th>`).join('')}<th>${fmtMoney(grandDisc)}</th><th>${fmtMoney(grand)}</th></tr></tfoot></table></div>`;
+  <div class="scroll" style="max-height:560px"><table><thead><tr><th>اسم الطالب</th><th>المرحلة</th><th>الفصل</th><th>القسم</th>${cols.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('')}<th>الخصم</th><th>الإجمالي</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td><strong>${escapeHtml(r.name)}</strong></td><td>${escapeHtml(r.s?.grade||'—')}</td><td>${escapeHtml(r.s?.className||'—')}</td><td>${escapeHtml(r.s?.department||'—')}</td>${cols.map(c=>`<td>${fmtMoney(r.vals[c.type+'|'+c.q]||0)}</td>`).join('')}<td>${fmtMoney(r.disc)}</td><td><strong>${fmtMoney(r.total)}</strong></td></tr>`).join('')||`<tr><td colspan="${cols.length+6}" class="muted">لا توجد توزيعات فعلية خلال الفترة المحددة.</td></tr>`}</tbody><tfoot><tr><th>الإجمالي</th><th></th><th></th><th></th>${cols.map(c=>`<th>${fmtMoney(rows.reduce((x,r)=>x+Number(r.vals[c.type+'|'+c.q]||0),0))}</th>`).join('')}<th>${fmtMoney(grandDisc)}</th><th>${fmtMoney(grand)}</th></tr></tfoot></table></div>`;
 }
 function renderNotDistributedReport(){
   const body=document.getElementById('notDistributedReportBody'); if(!body)return;
@@ -1003,18 +1013,18 @@ function renderNotDistributedReport(){
     return {s,byQ,total:alloc.reduce((x,a)=>x+Number(a.amount||0),0)};
   });
   body.innerHTML=`<div class="grid" style="margin-top:12px"><div><label>عدد الطلبة غير الموزع عليهم</label><div class="big">${rows.length.toLocaleString()}</div></div><div><label>إجمالي الطلبة النشطين</label><div class="big">${activeStudents().length.toLocaleString()}</div></div></div>
-  <div class="scroll" style="max-height:560px"><table><thead><tr><th>اسم الطالب</th><th>المرحلة</th><th>الموزع سابقًا ق1</th><th>الموزع سابقًا ق2</th><th>الموزع سابقًا ق3</th><th>إجمالي الموزع سابقًا</th><th>خلال الفترة</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${escapeHtml(r.s.name||'—')}</strong></td><td>${escapeHtml(r.s.grade||'—')}</td>${r.byQ.map(v=>`<td>${fmtMoney(v)}</td>`).join('')}<td>${fmtMoney(r.total)}</td><td>0.00 ج</td></tr>`).join('')||'<tr><td colspan="7" class="muted">كل الطلبة حصلوا على توزيع خلال الفترة المحددة.</td></tr>'}</tbody></table></div>`;
+  <div class="scroll" style="max-height:560px"><table><thead><tr><th>اسم الطالب</th><th>المرحلة</th><th>الفصل</th><th>القسم</th><th>الموزع سابقًا ق1</th><th>الموزع سابقًا ق2</th><th>الموزع سابقًا ق3</th><th>إجمالي الموزع سابقًا</th><th>خلال الفترة</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>${escapeHtml(r.s.name||'—')}</strong></td><td>${escapeHtml(r.s.grade||'—')}</td><td>${escapeHtml(r.s.className||'—')}</td><td>${escapeHtml(r.s.department||'—')}</td>${r.byQ.map(v=>`<td>${fmtMoney(v)}</td>`).join('')}<td>${fmtMoney(r.total)}</td><td>0.00 ج</td></tr>`).join('')||'<tr><td colspan="9" class="muted">كل الطلبة حصلوا على توزيع خلال الفترة المحددة.</td></tr>'}</tbody></table></div>`;
 }
 function exportPeriodDistributionExcel(){
   const from=document.getElementById('rdf')?.value||'',to=document.getElementById('rdt')?.value||'';
   const {rows,cols}=periodDistributionRows(from,to);
-  const out=rows.map(r=>[r.name,r.s?.code||r.s?.ser||'',r.s?.grade||'',...cols.map(c=>money2(r.vals[c.type+'|'+c.q]||0)),money2(r.disc),money2(r.total)]);
-  downloadExcelXml('تقرير_التوزيع_خلال_الفترة.xls',[{name:'التوزيع',headers:['اسم الطالب','كود الطالب','المرحلة',...cols.map(c=>c.label),'الخصم','الإجمالي'],rows:out}]);
+  const out=rows.map(r=>[r.name,r.s?.code||r.s?.ser||'',r.s?.grade||'',r.s?.className||'',r.s?.department||'',...cols.map(c=>money2(r.vals[c.type+'|'+c.q]||0)),money2(r.disc),money2(r.total)]);
+  downloadExcelXml('تقرير_التوزيع_خلال_الفترة.xls',[{name:'التوزيع',headers:['اسم الطالب','كود الطالب','المرحلة','الفصل','القسم',...cols.map(c=>c.label),'الخصم','الإجمالي'],rows:out}]);
 }
 function exportNotDistributedExcel(){
   const from=document.getElementById('ndf')?.value||'',to=document.getElementById('ndt')?.value||'',during=new Set(periodAllocations(from,to).map(a=>String(a.studentId)));
-  const rows=D.students.filter(s=>s.active!==false&&!during.has(String(s.ser))).map(s=>{const a=(D.allocations||[]).filter(x=>String(x.studentId)===String(s.ser));return [s.name||'',s.code||s.ser||'',s.grade||'',...[1,2,3].map(q=>a.filter(x=>Number(x.installmentId)===q).reduce((x,y)=>x+Number(y.amount||0),0)),a.reduce((x,y)=>x+Number(y.amount||0),0),0];});
-  downloadExcelXml('الطلبة_غير_الموزع_عليهم.xls',[{name:'غير موزع',headers:['اسم الطالب','كود الطالب','المرحلة','سابقًا ق1','سابقًا ق2','سابقًا ق3','إجمالي سابقًا','خلال الفترة'],rows}]);
+  const rows=D.students.filter(s=>s.active!==false&&!during.has(String(s.ser))).map(s=>{const a=(D.allocations||[]).filter(x=>String(x.studentId)===String(s.ser));return [s.name||'',s.code||s.ser||'',s.grade||'',s.className||'',s.department||'',...[1,2,3].map(q=>a.filter(x=>Number(x.installmentId)===q).reduce((x,y)=>x+Number(y.amount||0),0)),a.reduce((x,y)=>x+Number(y.amount||0),0),0];});
+  downloadExcelXml('الطلبة_غير_الموزع_عليهم.xls',[{name:'غير موزع',headers:['اسم الطالب','كود الطالب','المرحلة','الفصل','القسم','سابقًا ق1','سابقًا ق2','سابقًا ق3','إجمالي سابقًا','خلال الفترة'],rows}]);
 }
 function outputActionsHtml(targetId,pdfName,excelHandler){
   return `<div class="output-actions">
@@ -1075,11 +1085,11 @@ function exportDistributionReportExcel(){
     if(q&&String(a.installmentId)!==q)return;
     Object.entries(allocationBreakdown(a)).forEach(([type,v])=>{
       if(t&&type!==t)return;
-      rows.push([a.operationId,a.date,s?.code||s?.ser||a.studentId,s?.name||a.studentName,s?.grade||'—',a.installmentName,type,v]);
+      rows.push([a.operationId,a.date,s?.code||s?.ser||a.studentId,s?.name||a.studentName,s?.grade||'—',s?.className||'—',s?.department||'—',a.installmentName,type,v]);
     });
   });
   downloadExcelXml('ملخص_التوزيع_2026_2027.xls',[
-    {name:'التوزيع',headers:['رقم العملية','التاريخ','كود الطالب','اسم الطالب','المرحلة','القسط','نوع المصروف','المبلغ'],rows}
+    {name:'التوزيع',headers:['رقم العملية','التاريخ','كود الطالب','اسم الطالب','المرحلة','الفصل','القسم','القسط','نوع المصروف','المبلغ'],rows}
   ]);
 }
 function exportStudentCollectionsExcel(){
@@ -1120,7 +1130,7 @@ document.addEventListener('DOMContentLoaded',function(){
    Flow: downloadStudentTemplate() -> user fills Excel -> handleImportFile() (parse + validate + preview)
          -> commitImport() (server-side merge into STUDENTS of the current academic year only).
    Reads D.students / D.stages (current year, from YEAR_SETTINGS) and studentHasDistribution(); never touches allocations. */
-var IMPORT_HEADERS=['Student Code','Student Name','Stage','Active'];
+var IMPORT_HEADERS=['Student Code','Student Name','Stage','Class Name','Department','Active'];
 var IMPORT_MAX_ROWS=5000;
 var IMPORT_STATE=null;
 
@@ -1167,30 +1177,33 @@ function sheetXml(opts){ // {rows:[[...]], headerStyle, bodyStyle, cols:[widths]
 function buildStudentTemplateXlsx(state){
   var stages=(state.stages||[]).slice().sort();
   var students=(state.students||[]).slice().sort(function(a,b){return Number(a.ser)-Number(b.ser);});
-  var dataRows=students.map(function(s){return [String(s.code||s.ser),s.name||'',s.grade||'',s.active!==false];});
+  var dataRows=students.map(function(s){return [String(s.code||s.ser),s.name||'',s.grade||'',s.className||'',s.department||'',s.active!==false];});
   var main=[IMPORT_HEADERS].concat(dataRows);
   var lastRow=IMPORT_MAX_ROWS+1, lastStage=stages.length+1;
   var validations=[
-    '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Stage" error="اختر مرحلة من قائمة المراحل المعتمدة للسنة الحالية" promptTitle="Stage" prompt="اختر المرحلة من القائمة" sqref="C2:C'+lastRow+'"><formula1>Stages!$A$2:$A$'+lastStage+'</formula1></dataValidation>',
-    '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Active" error="القيمة يجب أن تكون TRUE أو FALSE" prompt="TRUE = نشط، FALSE = غير نشط" sqref="D2:D'+lastRow+'"><formula1>"TRUE,FALSE"</formula1></dataValidation>'
+    '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Stage" error="اختر مرحلة من القائمة، أو اكتبها كما في ملف المدرسة مثل Stage-1-A" promptTitle="Stage" prompt="اختر المرحلة من القائمة، أو اكتب Stage-1-A" sqref="C2:C'+lastRow+'"><formula1>Stages!$A$2:$A$'+lastStage+'</formula1></dataValidation>',
+    '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Department" error="القيمة يجب أن تكون BR أو AM" prompt="BR = British، AM = American" sqref="E2:E'+lastRow+'"><formula1>"BR,AM,British,American"</formula1></dataValidation>',
+    '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Active" error="القيمة يجب أن تكون TRUE أو FALSE" prompt="TRUE = نشط، FALSE = غير نشط" sqref="F2:F'+lastRow+'"><formula1>"TRUE,FALSE"</formula1></dataValidation>'
   ];
   var instr=[['تعليمات ملء نموذج الطلبة — نظام تحصيلات الطلبة'],[''],
     ['العام الدراسي',state.academicYear||''],[''],
     ['1','لا تغيّر أسماء الأعمدة في الصف الأول من ورقة Students (الصف محمي).'],
     ['2','Student Code: كود الطالب — فريد لكل طالب. كود موجود = تحديث بيانات الطالب، كود جديد = إضافة طالب.'],
     ['3','Student Name: اسم الطالب — إلزامي.'],
-    ['4','Stage: المرحلة — اختر من القائمة المنسدلة فقط (المراحل المعتمدة للسنة الحالية في ورقة Stages).'],
-    ['5','Active: TRUE = نشط، FALSE = غير نشط. لا يمكن تعطيل طالب له توزيعات مالية عبر الاستيراد.'],
-    ['6','الصفوف الفارغة تُتجاهل. الطالب الموجود في النظام وغير الموجود في الملف لا يُحذف.'],
-    ['7','بعد الرفع يعرض النظام مراجعة وملخصًا، ولا يتم أي حفظ قبل الضغط على "اعتماد واستيراد".'],
-    ['8','الاستيراد يخص السنة الدراسية الحالية فقط.']];
+    ['4','Stage: المرحلة — من القائمة المنسدلة، أو اكتبها كما في ملف المدرسة مثل Stage-1-A: يُفسَّر Stage-1=KG1 وStage-2=KG2 والحرف الأخير A/B/C = الفصل.'],
+    ['5','Class Name: الفصل (A/B/C...). اتركه فارغًا إذا كان الحرف مكتوبًا داخل عمود Stage.'],
+    ['6','Department: BR = British، AM = American (يمكن كتابة الاسم الكامل).'],
+    ['7','Active: TRUE = نشط، FALSE = غير نشط. لا يمكن تعطيل طالب له توزيعات مالية عبر الاستيراد.'],
+    ['8','الصفوف الفارغة تُتجاهل. الطالب الموجود في النظام وغير الموجود في الملف لا يُحذف.'],
+    ['9','بعد الرفع يعرض النظام مراجعة وملخصًا، ولا يتم أي حفظ قبل الضغط على "اعتماد واستيراد".'],
+    ['10','الاستيراد يخص السنة الدراسية الحالية فقط.']];
   var files=[
     {name:'[Content_Types].xml',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>')},
     {name:'_rels/.rels',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')},
     {name:'xl/workbook.xml',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Students" sheetId="1" r:id="rId1"/><sheet name="Stages" sheetId="2" r:id="rId2"/><sheet name="Instructions" sheetId="3" r:id="rId3"/></sheets></workbook>')},
     {name:'xl/_rels/workbook.xml.rels',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>')},
     {name:'xl/styles.xml',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF123166"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyProtection="1"><protection locked="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyProtection="1"><protection locked="0"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')},
-    {name:'xl/worksheets/sheet1.xml',data:utf8(sheetXml({rows:main,headerStyle:1,bodyStyle:2,cols:[18,42,14,12],protect:true,validations:validations,freeze:true,tab:true}))},
+    {name:'xl/worksheets/sheet1.xml',data:utf8(sheetXml({rows:main,headerStyle:1,bodyStyle:2,cols:[18,42,16,12,14,12],protect:true,validations:validations,freeze:true,tab:true}))},
     {name:'xl/worksheets/sheet2.xml',data:utf8(sheetXml({rows:[['Stage']].concat(stages.map(function(g){return [g];})),headerStyle:1,cols:[16]}))},
     {name:'xl/worksheets/sheet3.xml',data:utf8(sheetXml({rows:instr,headerStyle:1,cols:[10,110],rtl:true}))}
   ];
@@ -1206,6 +1219,17 @@ function downloadStudentTemplate(){
 
 /* ---------- validation (pure; also mirrored on the server) ---------- */
 function normStageKey(g){return String(g==null?'':g).replace(/\s+/g,'').trim();}
+/* Stage / Class Name / Department parsing — mirrors parseStageValue_ / normDepartment_ in Code.gs */
+var IMPORT_STAGE_ALIASES={'STAGE-1':'KG1','STAGE1':'KG1','STAGE-2':'KG2','STAGE2':'KG2'};
+var IMPORT_DEPARTMENTS={'BR':'British','BRITISH':'British','AM':'American','AMERICAN':'American'};
+function parseStageCell(raw){
+  var v=String(raw==null?'':raw).trim(); if(!v) return {stage:'',className:''};
+  var cls='', m=v.match(/^(.*?)[\s\-_]*([A-Za-z])$/);
+  if(m && /[0-9]/.test(m[1])){ v=m[1]; cls=m[2].toUpperCase(); }
+  var key=normStageKey(v).toUpperCase().replace(/[-_]+$/,'');
+  return {stage:IMPORT_STAGE_ALIASES[key]||IMPORT_STAGE_ALIASES[key.replace(/-/g,'')]||normStageKey(v), className:cls};
+}
+function parseDepartmentCell(d){ var v=String(d==null?'':d).trim(); return v?(IMPORT_DEPARTMENTS[v.toUpperCase()]||''):''; }
 function parseActiveCell(v){
   if(v===true||v===false) return v;
   var s=String(v==null?'':v).trim().toLowerCase();
@@ -1216,31 +1240,35 @@ function parseActiveCell(v){
 function validateImportRows(rows, state){
   var res={headerError:null,total:0,valid:[],errors:[],adds:0,updates:0,unchanged:0};
   if(!rows||!rows.length){res.headerError='الملف فارغ.';return res;}
-  var hdr=(rows[0]||[]).slice(0,4).map(function(h){return String(h==null?'':h).trim().toLowerCase();});
+  var hdr=(rows[0]||[]).slice(0,IMPORT_HEADERS.length).map(function(h){return String(h==null?'':h).trim().toLowerCase();});
   var bad=IMPORT_HEADERS.filter(function(h,i){return hdr[i]!==h.toLowerCase();});
   if(bad.length){res.headerError='أسماء الأعمدة غير مطابقة للنموذج. المطلوب: '+IMPORT_HEADERS.join(' | ');return res;}
   var stageByKey={}; (state.stages||[]).forEach(function(g){stageByKey[normStageKey(g)]=g;});
   var byCode={}; (state.students||[]).forEach(function(s){byCode[String(s.code||s.ser).trim()]=s;});
   var seen={};
   for(var i=1;i<rows.length;i++){
-    var r=rows[i]||[], code=String(r[0]==null?'':r[0]).trim(), name=String(r[1]==null?'':r[1]).trim(), stage=String(r[2]==null?'':r[2]).trim(), act=r[3];
-    if(code===''&&name===''&&stage===''&&(act==null||String(act).trim()==='')) continue; // blank row
+    var r=rows[i]||[], code=String(r[0]==null?'':r[0]).trim(), name=String(r[1]==null?'':r[1]).trim(), stageRaw=String(r[2]==null?'':r[2]).trim(),
+        clsRaw=String(r[3]==null?'':r[3]).trim(), deptRaw=String(r[4]==null?'':r[4]).trim(), act=r[5];
+    if(code===''&&name===''&&stageRaw===''&&clsRaw===''&&deptRaw===''&&(act==null||String(act).trim()==='')) continue; // blank row
+    var parsed=parseStageCell(stageRaw), stage=parsed.stage, cls=(clsRaw?clsRaw.toUpperCase():parsed.className), dept=parseDepartmentCell(deptRaw);
     res.total++;
     var rowNo=i+1, errs=[];
     if(code==='') errs.push('Student Code فارغ');
     if(name==='') errs.push('Student Name فارغ');
     if(code!==''&&seen[code]) errs.push('Student Code مكرر داخل الملف (الصف '+seen[code]+')');
     var stageKey=normStageKey(stage), stageName=stageByKey[stageKey];
-    if(stage===''||!stageName) errs.push('Stage غير موجودة ضمن مراحل السنة الحالية: "'+stage+'"');
+    if(stageRaw===''||!stageName) errs.push('Stage غير موجودة ضمن مراحل السنة الحالية: "'+stageRaw+'"');
+    if(cls&&!/^[A-Z0-9]{1,4}$/.test(cls)) errs.push('Class Name غير صالح: "'+clsRaw+'"');
+    if(deptRaw&&!dept) errs.push('Department غير صالح: "'+deptRaw+'"');
     var active=parseActiveCell(act); if(active===null) errs.push('Active يجب أن تكون TRUE أو FALSE');
     var existing=code!==''?byCode[code]:null, action='add';
     if(existing){
       if(active===false&&existing.active!==false&&studentHasDistribution(existing.ser)) errs.push('لا يمكن تعطيل طالب له توزيعات مالية عبر الاستيراد');
-      action=(existing.name===name&&existing.grade===stageName&&(existing.active!==false)===active)?'unchanged':'update';
+      action=(existing.name===name&&existing.grade===stageName&&(existing.className||'')===cls&&(existing.department||'')===dept&&(existing.active!==false)===active)?'unchanged':'update';
     }
     if(code!=='')seen[code]=rowNo;
     if(errs.length){res.errors.push({row:rowNo,code:code,name:name,reason:errs.join(' — ')});continue;}
-    res.valid.push({row:rowNo,code:code,name:name,grade:stageName,active:active,action:action,ser:existing?existing.ser:null});
+    res.valid.push({row:rowNo,code:code,name:name,grade:stageName,className:cls,department:dept,active:active,action:action,ser:existing?existing.ser:null});
     if(action==='add')res.adds++;else if(action==='update')res.updates++;else res.unchanged++;
   }
   return res;
@@ -1285,8 +1313,8 @@ function renderImportPreview(){
     '</div>'+
     (R.errors.length?'<h4 style="margin:12px 0 4px">❌ أخطاء يجب تصحيحها في الملف</h4><div class="scroll" style="max-height:260px"><table><thead><tr><th>الصف</th><th>الكود</th><th>الاسم</th><th>السبب</th></tr></thead><tbody>'+
       R.errors.map(function(e){return '<tr><td>'+e.row+'</td><td>'+escapeHtml(e.code)+'</td><td>'+escapeHtml(e.name)+'</td><td style="color:#a52b2b">'+escapeHtml(e.reason)+'</td></tr>';}).join('')+'</tbody></table></div>':'')+
-    (changes.length?'<h4 style="margin:12px 0 4px">📋 مراجعة التغييرات ('+fmt(changes.length)+(changes.length>300?' — يُعرض أول 300':'')+')</h4><div class="scroll" style="max-height:320px"><table><thead><tr><th>الصف</th><th>الإجراء</th><th>الكود</th><th>الاسم</th><th>المرحلة</th><th>الحالة</th></tr></thead><tbody>'+
-      previewRows.map(function(v){return '<tr><td>'+v.row+'</td><td class="'+(v.action==='add'?'ok':'')+'">'+actionLabel[v.action]+'</td><td>'+escapeHtml(v.code)+'</td><td>'+escapeHtml(v.name)+'</td><td>'+escapeHtml(v.grade)+'</td><td>'+(v.active?'نشط':'غير نشط')+'</td></tr>';}).join('')+'</tbody></table></div>':'<p class="muted" style="margin-top:10px">لا توجد إضافات أو تعديلات في هذا الملف.</p>')+
+    (changes.length?'<h4 style="margin:12px 0 4px">📋 مراجعة التغييرات ('+fmt(changes.length)+(changes.length>300?' — يُعرض أول 300':'')+')</h4><div class="scroll" style="max-height:320px"><table><thead><tr><th>الصف</th><th>الإجراء</th><th>الكود</th><th>الاسم</th><th>المرحلة</th><th>الفصل</th><th>القسم</th><th>الحالة</th></tr></thead><tbody>'+
+      previewRows.map(function(v){return '<tr><td>'+v.row+'</td><td class="'+(v.action==='add'?'ok':'')+'">'+actionLabel[v.action]+'</td><td>'+escapeHtml(v.code)+'</td><td>'+escapeHtml(v.name)+'</td><td>'+escapeHtml(v.grade)+'</td><td>'+escapeHtml(v.className||'—')+'</td><td>'+escapeHtml(v.department||'—')+'</td><td>'+(v.active?'نشط':'غير نشط')+'</td></tr>';}).join('')+'</tbody></table></div>':'<p class="muted" style="margin-top:10px">لا توجد إضافات أو تعديلات في هذا الملف.</p>')+
     '<div class="output-actions" style="margin-top:12px">'+
       (changes.length?'<button onclick="commitImport()">💾 اعتماد واستيراد ('+fmt(changes.length)+')</button>':'')+
       '<button class="alt small-btn" onclick="cancelImport()">إلغاء</button>'+
@@ -1299,7 +1327,7 @@ function commitImport(){
   var changes=R.valid.filter(function(v){return v.action!=='unchanged';}); if(!changes.length)return;
   if(!confirm('سيتم إضافة '+R.adds+' طالب وتحديث '+R.updates+' طالب في العام '+D.academicYear+'. هل تريد المتابعة؟'))return;
   var out=document.getElementById('importOutput'); out.innerHTML='<p class="muted">جارٍ الاستيراد...</p>';
-  api('importStudents',{academicYear:D.academicYear,rows:changes.map(function(v){return {code:v.code,name:v.name,grade:v.grade,active:v.active};})}).then(function(res){
+  api('importStudents',{academicYear:D.academicYear,rows:changes.map(function(v){return {code:v.code,name:v.name,grade:v.grade,className:v.className,department:v.department,active:v.active};})}).then(function(res){
     applyState(res.state); IMPORT_STATE=null; studentsView();
     var s=res.summary||{};
     out.innerHTML='<p class="ok">✅ تم الاستيراد: '+Number(s.added||0)+' إضافة، '+Number(s.updated||0)+' تحديث'+(s.rejected&&s.rejected.length?'، '+s.rejected.length+' مرفوض من الخادم':'')+'.</p>'+
