@@ -228,6 +228,7 @@ th{font-weight:600}table{font-size:14px}
 <section id="settings" class="hidden">
 <div class="card"><h3>⚙️ إعدادات العام — قابلة للتعديل</h3><div class="grid">
 <div><label>السنة الدراسية</label><input id="ay"></div><div><label>بداية السنة</label><input id="ys" type="date"></div><div><label>نهاية السنة</label><input id="ye" type="date"></div></div><button onclick="saveYear()">💾 حفظ</button></div>
+<div class="card"><h3>🏫 مراحل السنة الحالية</h3><p class="muted">المراحل المعتمدة للسنة، وهي المصدر الوحيد للنموذج والاستيراد ولائحة المصروفات. مرحلة في كل سطر (مثل KG1).</p><textarea id="yearStages" rows="6" style="width:100%"></textarea><div id="yearStagesCount" class="muted"></div><button onclick="saveStages()">💾 حفظ المراحل</button></div>
 <div class="card"><h3>📅 الأقساط والمستهدفات</h3><table><thead><tr><th>القسط</th><th>من</th><th>إلى</th><th>المستهدف</th><th>الموزع</th><th>المرحل</th></tr></thead><tbody id="inst"></tbody></table><button onclick="saveInst()">💾 حفظ</button></div>
 <div class="card"><h3>💰 نسب السداد</h3><table><thead><tr><th>المصروف</th><th>الأول</th><th>الثاني</th><th>الثالث</th></tr></thead><tbody id="rules"></tbody></table><button onclick="saveRules()">💾 حفظ</button></div>
 <div class="card"><h3>🏫 لائحة المصروفات لكل مرحلة</h3><p class="muted">القيم دي هي أساس مستحقات كل طالب داخل المرحلة، وقابلة للتعديل.</p>
@@ -493,8 +494,19 @@ function settings(){
 document.getElementById('ay').value=D.academicYear;document.getElementById('ys').value=D.yearStart;document.getElementById('ye').value=D.yearEnd;
 document.getElementById('inst').innerHTML=D.installments.map(i=>`<tr><td>${i.name}</td><td><input id="f${i.id}" type="date" value="${i.from}"></td><td><input id="t${i.id}" type="date" value="${i.to}"></td><td><input id="x${i.id}" type="number" value="${i.target}"></td><td>${fmtMoney(sumLines(a=>Number(a.installmentId)===Number(i.id)))}</td><td>${fmtMoney(i.carry)}</td></tr>`).join('');
 document.getElementById('rules').innerHTML=D.rules.map((r,n)=>`<tr><td>${r.name}</td><td><span style="display:flex;align-items:center;gap:2px"><input id="a${n}" type="number" value="${r.q1}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="b${n}" type="number" value="${r.q2}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="c${n}" type="number" value="${r.q3}"><b>%</b></span></td></tr>`).join('');
+renderYearStages();
 feeEditorInit();
 }
+function renderYearStages(){const t=document.getElementById('yearStages'); if(t)t.value=(D.stages||[]).join('\n');
+  const c=document.getElementById('yearStagesCount'); if(c)c.textContent=(D.stages||[]).length?((D.stages||[]).length+' مرحلة'):'⚠️ لا توجد مراحل مسجلة للسنة الحالية — لن يقبل الاستيراد أي مرحلة قبل حفظها.';}
+function saveStages(){
+  const raw=String((document.getElementById('yearStages')||{}).value||'');
+  const seen={}, stages=[];
+  raw.split(/[\n,،]+/).forEach(g=>{const v=normStageKey(g); if(v&&!seen[v]){seen[v]=1;stages.push(v);}});
+  const gone=(D.stages||[]).filter(g=>stages.indexOf(g)<0);
+  if(gone.length&&!confirm('ستُحذف هذه المراحل من السنة: '+gone.join('، ')+'\nمتابعة؟'))return;
+  api('saveYear',{academicYear:document.getElementById('ay').value,yearStart:document.getElementById('ys').value,yearEnd:document.getElementById('ye').value,stages:stages})
+    .then(st=>{applyState(st);settings();alert('تم حفظ مراحل السنة ('+(st.stages||[]).length+')')}).catch(apiError)}
 function saveYear(){api('saveYear',{academicYear:document.getElementById('ay').value,yearStart:document.getElementById('ys').value,yearEnd:document.getElementById('ye').value}).then(st=>{applyState(st);alert('تم حفظ إعدادات العام')}).catch(apiError)}
 function saveInst(){api('saveInst',{installments:D.installments.map(i=>({id:i.id,from:document.getElementById('f'+i.id).value,to:document.getElementById('t'+i.id).value,target:+document.getElementById('x'+i.id).value||0}))}).then(st=>{applyState(st);alert('تم حفظ الأقساط والمستهدفات');settings();home()}).catch(apiError)}
 function saveRules(){api('saveRules',{rules:D.rules.map((r,n)=>({name:r.name,q1:+document.getElementById('a'+n).value||0,q2:+document.getElementById('b'+n).value||0,q3:+document.getElementById('c'+n).value||0}))}).then(st=>{applyState(st);alert('تم حفظ نسب السداد')}).catch(apiError)}
