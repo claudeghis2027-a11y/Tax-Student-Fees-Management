@@ -231,7 +231,7 @@ th{font-weight:600}table{font-size:14px}
 <div class="card"><h3>📅 الأقساط والمستهدفات</h3><table><thead><tr><th>القسط</th><th>من</th><th>إلى</th><th>المستهدف</th><th>الموزع</th><th>المرحل</th></tr></thead><tbody id="inst"></tbody></table><button onclick="saveInst()">💾 حفظ</button></div>
 <div class="card"><h3>💰 نسب السداد</h3><table><thead><tr><th>المصروف</th><th>الأول</th><th>الثاني</th><th>الثالث</th></tr></thead><tbody id="rules"></tbody></table><button onclick="saveRules()">💾 حفظ</button></div>
 <div class="card"><h3>🏫 لائحة المصروفات لكل مرحلة</h3><p class="muted">القيم دي هي أساس مستحقات كل طالب داخل المرحلة، وقابلة للتعديل.</p>
-<div class="scroll"><table><thead><tr><th>المرحلة</th><th>تعليم</th><th>نشاط</th><th>باص</th><th>كتب الوزارة</th><th>كتب خارجية</th></tr></thead><tbody id="fees"></tbody></table></div><button onclick="saveFees()">💾 حفظ</button></div>
+<div class="grid" style="margin-bottom:8px"><div><label>مرحلة</label><select id="feeAddStage"></select></div><div><label>القسم</label><select id="feeAddDept"><option value="ALL">ALL — الافتراضي</option><option value="British">British</option><option value="American">American</option></select></div><div><label>&nbsp;</label><button type="button" onclick="addFeeRow()">➕ إضافة صف</button></div></div><div class="scroll"><table><thead><tr><th>المرحلة</th><th>القسم</th><th>تعليم</th><th>نشاط</th><th>باص</th><th>كتب الوزارة</th><th>كتب خارجية</th></tr></thead><tbody id="fees"></tbody></table></div><button onclick="saveFees()">💾 حفظ</button></div>
 </section>
 
 <section id="students" class="hidden"><div class="card"><h3>👨‍🎓 بيانات الطلبة</h3>
@@ -382,7 +382,7 @@ function sumLinesByType(pred){const o={};(D.allocations||[]).filter(pred||(()=>t
 /* BR-4: split an installment Target across expense types by the weight of each type's due in that installment (active students). Σ == Target exactly. */
 function installmentTargetByType(inst){
   const idx=Number(inst.id)-1, w={}; let tw=0;
-  activeStudents().forEach(s=>{const fees=D.stageFees[s.grade]||{};(D.rules||[]).forEach(r=>{const v=Number(fees[r.name]||0)*Number(r['q'+(idx+1)]||0)/100; if(v>0){w[r.name]=(w[r.name]||0)+v; tw+=v;}});});
+  activeStudents().forEach(s=>{const fees=studentFees(s);(D.rules||[]).forEach(r=>{const v=Number(fees[r.name]||0)*Number(r['q'+(idx+1)]||0)/100; if(v>0){w[r.name]=(w[r.name]||0)+v; tw+=v;}});});
   const target=money2(inst.target), out={}; let acc=0; const names=(D.rules||[]).map(r=>r.name);
   names.forEach((n,i)=>{ if(tw<=0){out[n]=0;return;} let v=(i===names.length-1)?money2(target-acc):money2(target*(w[n]||0)/tw); if(i===names.length-1&&!(w[n]>0)&&Math.abs(v)<0.005)v=0; out[n]=v; acc=money2(acc+v); });
   if(tw>0){ // load rounding residue on the last type that has weight, so Σ == Target exactly
@@ -493,12 +493,40 @@ function settings(){
 document.getElementById('ay').value=D.academicYear;document.getElementById('ys').value=D.yearStart;document.getElementById('ye').value=D.yearEnd;
 document.getElementById('inst').innerHTML=D.installments.map(i=>`<tr><td>${i.name}</td><td><input id="f${i.id}" type="date" value="${i.from}"></td><td><input id="t${i.id}" type="date" value="${i.to}"></td><td><input id="x${i.id}" type="number" value="${i.target}"></td><td>${fmtMoney(sumLines(a=>Number(a.installmentId)===Number(i.id)))}</td><td>${fmtMoney(i.carry)}</td></tr>`).join('');
 document.getElementById('rules').innerHTML=D.rules.map((r,n)=>`<tr><td>${r.name}</td><td><span style="display:flex;align-items:center;gap:2px"><input id="a${n}" type="number" value="${r.q1}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="b${n}" type="number" value="${r.q2}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="c${n}" type="number" value="${r.q3}"><b>%</b></span></td></tr>`).join('');
-document.getElementById('fees').innerHTML=Object.entries(D.stageFees).map(([g,f])=>`<tr><td>${g}</td>${['تعليم','نشاط','باص','كتب الوزارة','كتب خارجية'].map(k=>`<td><input id="v_${g}_${k}" type="number" value="${f[k]||0}"></td>`).join('')}</tr>`).join('');
+feeEditorInit();
 }
 function saveYear(){api('saveYear',{academicYear:document.getElementById('ay').value,yearStart:document.getElementById('ys').value,yearEnd:document.getElementById('ye').value}).then(st=>{applyState(st);alert('تم حفظ إعدادات العام')}).catch(apiError)}
 function saveInst(){api('saveInst',{installments:D.installments.map(i=>({id:i.id,from:document.getElementById('f'+i.id).value,to:document.getElementById('t'+i.id).value,target:+document.getElementById('x'+i.id).value||0}))}).then(st=>{applyState(st);alert('تم حفظ الأقساط والمستهدفات');settings();home()}).catch(apiError)}
 function saveRules(){api('saveRules',{rules:D.rules.map((r,n)=>({name:r.name,q1:+document.getElementById('a'+n).value||0,q2:+document.getElementById('b'+n).value||0,q3:+document.getElementById('c'+n).value||0}))}).then(st=>{applyState(st);alert('تم حفظ نسب السداد')}).catch(apiError)}
-function saveFees(){const stageFees={};for(let g in D.stageFees){stageFees[g]={};for(let k of ['تعليم','نشاط','باص','كتب الوزارة','كتب خارجية'])stageFees[g][k]=+document.getElementById('v_'+g+'_'+k).value||0}api('saveFees',{stageFees}).then(st=>{applyState(st);alert('تم حفظ اللائحة')}).catch(apiError)}
+const FEE_TYPES_UI=['تعليم','نشاط','باص','كتب الوزارة','كتب خارجية'];
+let FEE_ROWS=[]; /* fee-schedule editor rows: {stage, dept, fees} — one row per stage|department */
+function feeEditorInit(){
+  FEE_ROWS=Object.keys(D.stageFees||{}).map(k=>{const p=splitFeeKey(k);const f=D.stageFees[k]||{};const o={};FEE_TYPES_UI.forEach(t=>o[t]=Number(f[t]||0));return {stage:p.stage,dept:p.dept,fees:o};});
+  feeEditorSort();
+  const sel=document.getElementById('feeAddStage');
+  if(sel)sel.innerHTML=(D.stages||[]).map(g=>`<option value="${g}">${g}</option>`).join('');
+  feeEditorRender();
+}
+function feeEditorSort(){FEE_ROWS.sort((a,b)=>a.stage===b.stage?(feeDeptRank(a.dept)-feeDeptRank(b.dept)):(a.stage<b.stage?-1:1));}
+function feeEditorRender(){
+  const body=document.getElementById('fees'); if(!body)return;
+  body.innerHTML=FEE_ROWS.map((r,i)=>`<tr><td>${r.stage}</td><td>${r.dept}</td>${FEE_TYPES_UI.map(k=>`<td><input id="v_${i}_${k}" type="number" value="${Number(r.fees[k]||0)}"></td>`).join('')}</tr>`).join('');
+}
+function feeEditorCollect(){FEE_ROWS.forEach((r,i)=>FEE_TYPES_UI.forEach(k=>{const el=document.getElementById('v_'+i+'_'+k); if(el)r.fees[k]=+el.value||0;}));}
+function addFeeRow(){
+  const gs=document.getElementById('feeAddStage'), ds=document.getElementById('feeAddDept');
+  const stage=String((gs&&gs.value)||'').trim(), dept=String((ds&&ds.value)||'ALL').trim()||'ALL';
+  if(!stage){alert('اختر المرحلة أولًا');return;}
+  feeEditorCollect();
+  if(FEE_ROWS.some(r=>r.stage===stage&&r.dept===dept)){alert('هذا الصف موجود بالفعل');return;}
+  const o={};FEE_TYPES_UI.forEach(t=>o[t]=0);FEE_ROWS.push({stage:stage,dept:dept,fees:o});feeEditorSort();feeEditorRender();
+}
+function saveFees(){
+  feeEditorCollect();
+  const zero=FEE_ROWS.filter(r=>r.dept!==FEE_DEPT_ALL&&FEE_TYPES_UI.every(t=>!Number(r.fees[t]||0)));
+  if(zero.length&&!confirm('صفوف بقيم أصفار: '+zero.map(r=>r.stage+'|'+r.dept).join('، ')+'\nطلبة هذا القسم لن يرجعوا إلى لائحة ALL. متابعة؟'))return;
+  const stageFees={};FEE_ROWS.forEach(r=>{const o={};FEE_TYPES_UI.forEach(k=>o[k]=Number(r.fees[k]||0));stageFees[r.stage+'|'+r.dept]=o;});
+  api('saveFees',{stageFees}).then(st=>{applyState(st);feeEditorInit();alert('تم حفظ اللائحة')}).catch(apiError)}
 function studentStatus(s){return s.active===false?'غير نشط':'نشط'}
 function studentHasDistribution(sid){
   return (D.allocations||[]).some(a=>String(a.studentId)===String(sid)&&Number(a.amount||0)>0);
@@ -552,6 +580,14 @@ function escapeHtml(v){
   return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 function getStudent(id){return D.students.find(s=>String(s.ser)===String(id));}
+const FEE_DEPT_ALL='ALL', FEE_DEPTS=['ALL','British','American'];
+function studentFeeDept(s){const d=String(((s||{}).department)||'').trim();return d?d:FEE_DEPT_ALL;}
+/* stage|department -> fees, falling back to stage|ALL, then to {} (same missing-fee behaviour as before). */
+function studentFees(s){const F=D.stageFees||{}, g=String(((s||{}).grade)||'');
+  const k=g+'|'+studentFeeDept(s); if(Object.prototype.hasOwnProperty.call(F,k))return F[k];
+  const a=g+'|'+FEE_DEPT_ALL; return Object.prototype.hasOwnProperty.call(F,a)?F[a]:{};}
+function splitFeeKey(k){const s=String(k==null?'':k), i=s.indexOf('|');return i<0?{stage:s,dept:FEE_DEPT_ALL}:{stage:s.slice(0,i),dept:s.slice(i+1)||FEE_DEPT_ALL};}
+function feeDeptRank(d){const i=FEE_DEPTS.indexOf(d);return i<0?FEE_DEPTS.length:i;}
 function allocationBreakdown(a){
   // BR-6: DISTRIBUTION_LINES is the only source of the distributed breakdown — no backfill / alternative computation.
   return (a&&a.breakdown)||{};
@@ -657,7 +693,7 @@ function ensureStudentData(){
   if(!Array.isArray(D.operations)) D.operations=[];
 }
 function installmentDueForStudent(s, instIndex){
-  const fees=D.stageFees[s.grade]||{};
+  const fees=studentFees(s);
   let due=0;
   (D.rules||[]).forEach(r=>{
     const pct=Number(r['q'+(instIndex+1)]||0)/100;
@@ -666,7 +702,7 @@ function installmentDueForStudent(s, instIndex){
   return Math.max(0,due);
 }
 function allocationTypeBreakdown(student, instIndex, amount){
-  const fees=D.stageFees[student.grade]||{}, out={};
+  const fees=studentFees(student), out={};
   let total=0;
   (D.rules||[]).forEach(r=>{
     const v=Number(fees[r.name]||0)*Number(r['q'+(instIndex+1)]||0)/100;
@@ -764,7 +800,7 @@ function renderDistributionSummary(startIndex){
 
   // BR-5: "إجمالي المستحق حسب لائحة المصروفات" = stage fee × ACTIVE students (never called Target).
   const budget={};
-  activeStudents().forEach(s=>{const fees=D.stageFees[s.grade]||{};Object.keys(fees).forEach(type=>{budget[type]=money2((budget[type]||0)+Number(fees[type]||0));});});
+  activeStudents().forEach(s=>{const fees=studentFees(s);Object.keys(fees).forEach(type=>{budget[type]=money2((budget[type]||0)+Number(fees[type]||0));});});
   const totalDistributed=sumLines();
   const distributedByType=sumLinesByType();
   const types=Object.keys(budget);
