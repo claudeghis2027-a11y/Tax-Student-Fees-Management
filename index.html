@@ -1217,7 +1217,7 @@ function buildStudentTemplateXlsx(state){
   var main=[IMPORT_HEADERS].concat(dataRows);
   var lastRow=IMPORT_MAX_ROWS+1, lastStage=stages.length+1;
   var validations=[
-    '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Stage" error="اختر مرحلة من القائمة، أو اكتبها كما في ملف المدرسة مثل Stage-1-A" promptTitle="Stage" prompt="اختر المرحلة من القائمة، أو اكتب Stage-1-A" sqref="C2:C'+lastRow+'"><formula1>Stages!$A$2:$A$'+lastStage+'</formula1></dataValidation>',
+    (stages.length ? '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Stage" error="اختر مرحلة من القائمة، أو اكتبها كما في ملف المدرسة مثل Stage-1-A" promptTitle="Stage" prompt="اختر المرحلة من القائمة، أو اكتب Stage-1-A" sqref="C2:C'+lastRow+'"><formula1>Stages!$A$2:$A$'+lastStage+'</formula1></dataValidation>' : ''),
     '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Department" error="القيمة يجب أن تكون BR أو AM" prompt="BR = British، AM = American" sqref="E2:E'+lastRow+'"><formula1>"BR,AM,British,American"</formula1></dataValidation>',
     '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Active" error="القيمة يجب أن تكون TRUE أو FALSE" prompt="TRUE = نشط، FALSE = غير نشط" sqref="F2:F'+lastRow+'"><formula1>"TRUE,FALSE"</formula1></dataValidation>'
   ];
@@ -1239,14 +1239,16 @@ function buildStudentTemplateXlsx(state){
     {name:'xl/workbook.xml',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Students" sheetId="1" r:id="rId1"/><sheet name="Stages" sheetId="2" r:id="rId2"/><sheet name="Instructions" sheetId="3" r:id="rId3"/></sheets></workbook>')},
     {name:'xl/_rels/workbook.xml.rels',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>')},
     {name:'xl/styles.xml',data:utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF123166"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyProtection="1"><protection locked="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyProtection="1"><protection locked="0"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')},
-    {name:'xl/worksheets/sheet1.xml',data:utf8(sheetXml({rows:main,headerStyle:1,bodyStyle:2,cols:[18,42,16,12,14,12],protect:true,validations:validations,freeze:true,tab:true}))},
+    {name:'xl/worksheets/sheet1.xml',data:utf8(sheetXml({rows:main,headerStyle:1,bodyStyle:2,cols:[18,42,16,12,14,12],protect:true,validations:validations.filter(Boolean),freeze:true,tab:true}))},
     {name:'xl/worksheets/sheet2.xml',data:utf8(sheetXml({rows:[['Stage']].concat(stages.map(function(g){return [g];})),headerStyle:1,cols:[16]}))},
     {name:'xl/worksheets/sheet3.xml',data:utf8(sheetXml({rows:instr,headerStyle:1,cols:[10,110],rtl:true}))}
   ];
   return zipStore(files);
 }
 function downloadStudentTemplate(){
-  if(!D||!(D.stages||[]).length){alert('لم يتم تحميل مراحل السنة الحالية بعد.');return;}
+  if(!D||!D.academicYear){alert('لم يتم تحميل بيانات السنة الحالية بعد. أعد تحميل الصفحة ثم حاول مرة أخرى.');return;}
+  // يُنزّل النموذج حتى لو لم يوجد أي طالب؛ وإن خلت YEAR_SETTINGS من المراحل يُنبّه المستخدم دون منع التحميل
+  if(!(D.stages||[]).length) alert('لا توجد مراحل مسجلة للسنة الحالية في YEAR_SETTINGS، لذلك سيُنزّل النموذج بلا قائمة مراحل منسدلة.');
   var bytes=buildStudentTemplateXlsx(D);
   var blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Students_Master_'+String(D.academicYear||'').replace(/\//g,'_')+'.xlsx';a.click();
