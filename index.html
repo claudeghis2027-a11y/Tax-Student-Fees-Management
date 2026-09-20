@@ -228,7 +228,8 @@ th{font-weight:600}table{font-size:14px}
 <section id="settings" class="hidden">
 <div class="card"><h3>⚙️ إعدادات العام — قابلة للتعديل</h3><div class="grid">
 <div><label>السنة الدراسية</label><input id="ay"></div><div><label>بداية السنة</label><input id="ys" type="date"></div><div><label>نهاية السنة</label><input id="ye" type="date"></div></div><button onclick="saveYear()">💾 حفظ</button></div>
-<div class="card"><h3>🏫 مراحل السنة الحالية</h3><p class="muted">المراحل المعتمدة للسنة، وهي المصدر الوحيد للنموذج والاستيراد ولائحة المصروفات. مرحلة في كل سطر (مثل KG1).</p><textarea id="yearStages" rows="6" style="width:100%"></textarea><div id="yearStagesCount" class="muted"></div><button onclick="saveStages()">💾 حفظ المراحل</button></div>
+<div class="card"><h3>🏫 مراحل السنة الحالية</h3><p class="muted">المراحل المعتمدة للسنة — المصدر الوحيد للنموذج والاستيراد ولائحة المصروفات.</p><div class="scroll"><table><thead><tr><th>المرحلة</th><th>القسم</th><th></th></tr></thead><tbody id="stageRows"></tbody></table></div><div id="stageMsg" class="muted"></div><button type="button" onclick="addStageRow()">➕ إضافة مرحلة</button> <button onclick="saveStages()">💾 حفظ المراحل</button></div>
+<div class="card"><h3>🏷️ Class Names</h3><p class="muted">قائمة الفصول المتاحة في السنة (A، B، C…). مستقلة تمامًا عن المرحلة والقسم، وتُحفظ مع الطالب نفسه.</p><div class="scroll"><table><thead><tr><th>Class Name</th><th></th></tr></thead><tbody id="classRows"></tbody></table></div><div id="classMsg" class="muted"></div><button type="button" onclick="addClassRow()">➕ إضافة Class Name</button> <button onclick="saveStages()">💾 حفظ الفصول</button></div>
 <div class="card"><h3>📅 الأقساط والمستهدفات</h3><table><thead><tr><th>القسط</th><th>من</th><th>إلى</th><th>المستهدف</th><th>الموزع</th><th>المرحل</th></tr></thead><tbody id="inst"></tbody></table><button onclick="saveInst()">💾 حفظ</button></div>
 <div class="card"><h3>💰 نسب السداد</h3><table><thead><tr><th>المصروف</th><th>الأول</th><th>الثاني</th><th>الثالث</th></tr></thead><tbody id="rules"></tbody></table><button onclick="saveRules()">💾 حفظ</button></div>
 <div class="card"><h3>🏫 لائحة المصروفات لكل مرحلة</h3><p class="muted">القيم دي هي أساس مستحقات كل طالب داخل المرحلة، وقابلة للتعديل.</p>
@@ -497,16 +498,56 @@ document.getElementById('rules').innerHTML=D.rules.map((r,n)=>`<tr><td>${r.name}
 renderYearStages();
 feeEditorInit();
 }
-function renderYearStages(){const t=document.getElementById('yearStages'); if(t)t.value=(D.stages||[]).join('\n');
-  const c=document.getElementById('yearStagesCount'); if(c)c.textContent=(D.stages||[]).length?((D.stages||[]).length+' مرحلة'):'⚠️ لا توجد مراحل مسجلة للسنة الحالية — لن يقبل الاستيراد أي مرحلة قبل حفظها.';}
+const DEPT_OPTIONS=[{v:'ALL',t:'بدون قسم'},{v:'American',t:'أمريكي'},{v:'British',t:'بريطاني'}];
+let STAGE_ROWS=[], CLASS_ROWS=[];
+function stageUsage(g){return (D.students||[]).filter(s=>normStageKey(s.grade)===normStageKey(g)).length;}
+function classUsage(c){return (D.students||[]).filter(s=>String(s.className||'').toUpperCase()===String(c).toUpperCase()).length;}
+function feeUsage(g){return Object.keys(D.stageFees||{}).filter(k=>splitFeeKey(k).stage===normStageKey(g)).length;}
+function renderYearStages(){
+  STAGE_ROWS=((D.stageList&&D.stageList.length)?D.stageList:(D.stages||[]).map(g=>({stage:g,department:'ALL'})))
+    .map(x=>({stage:x.stage,department:x.department||'ALL'}));
+  CLASS_ROWS=(D.classNames||[]).slice();
+  renderStageRows(); renderClassRows();
+}
+function renderStageRows(){
+  const b=document.getElementById('stageRows'); if(!b)return;
+  b.innerHTML=STAGE_ROWS.map((r,i)=>`<tr><td><input id="sg_${i}" value="${r.stage}"></td><td><select id="sd_${i}">`+
+    DEPT_OPTIONS.map(o=>`<option value="${o.v}"${o.v===r.department?' selected':''}>${o.t}</option>`).join('')+
+    `</select></td><td><button type="button" class="alt small-btn" onclick="removeStageRow(${i})">✖</button></td></tr>`).join('');
+  const m=document.getElementById('stageMsg');
+  if(m)m.textContent=STAGE_ROWS.length?(STAGE_ROWS.length+' مرحلة'):'لا توجد مراحل بعد — ستُنشأ تلقائيًا من أول ملف طلبة تستورده.';
+}
+function renderClassRows(){
+  const b=document.getElementById('classRows'); if(!b)return;
+  b.innerHTML=CLASS_ROWS.map((c,i)=>`<tr><td><input id="cn_${i}" value="${c}"></td><td><button type="button" class="alt small-btn" onclick="removeClassRow(${i})">✖</button></td></tr>`).join('');
+  const m=document.getElementById('classMsg');
+  if(m)m.textContent=CLASS_ROWS.length?(CLASS_ROWS.length+' Class Name'):'لا توجد فصول بعد — ستُنشأ تلقائيًا من أول ملف طلبة تستورده.';
+}
+function collectStageRows(){STAGE_ROWS.forEach((r,i)=>{const n=document.getElementById('sg_'+i),d=document.getElementById('sd_'+i);
+  if(n)r.stage=normStageKey(n.value); if(d)r.department=d.value||'ALL';});}
+function collectClassRows(){CLASS_ROWS=CLASS_ROWS.map((c,i)=>{const e=document.getElementById('cn_'+i);return e?String(e.value||'').trim().toUpperCase():c;});}
+function addStageRow(){collectStageRows();collectClassRows();STAGE_ROWS.push({stage:'',department:'ALL'});renderStageRows();}
+function addClassRow(){collectStageRows();collectClassRows();CLASS_ROWS.push('');renderClassRows();}
+function removeStageRow(i){collectStageRows();collectClassRows();const g=STAGE_ROWS[i]&&STAGE_ROWS[i].stage;
+  if(g){const n=stageUsage(g),f=feeUsage(g);
+    if(n){alert('لا يمكن حذف المرحلة '+g+' لأن بها '+n+' طالبًا.');return;}
+    if(f&&!confirm('للمرحلة '+g+' صفوف في لائحة المصروفات. حذفها من السنة؟'))return;}
+  STAGE_ROWS.splice(i,1);renderStageRows();}
+function removeClassRow(i){collectStageRows();collectClassRows();const c=CLASS_ROWS[i];
+  if(c){const n=classUsage(c); if(n){alert('لا يمكن حذف Class Name '+c+' لأنه مستخدم لدى '+n+' طالبًا.');return;}}
+  CLASS_ROWS.splice(i,1);renderClassRows();}
 function saveStages(){
-  const raw=String((document.getElementById('yearStages')||{}).value||'');
+  collectStageRows(); collectClassRows();
   const seen={}, stages=[];
-  raw.split(/[\n,،]+/).forEach(g=>{const v=normStageKey(g); if(v&&!seen[v]){seen[v]=1;stages.push(v);}});
-  const gone=(D.stages||[]).filter(g=>stages.indexOf(g)<0);
+  for(const r of STAGE_ROWS){const g=normStageKey(r.stage); if(!g)continue; if(seen[g]){alert('مرحلة مكررة: '+g);return;} seen[g]=1; stages.push({stage:g,department:r.department||'ALL'});}
+  const sc={}, classNames=[];
+  for(const c0 of CLASS_ROWS){const c=String(c0||'').trim().toUpperCase(); if(!c)continue;
+    if(!/^[A-Z0-9]{1,4}$/.test(c)){alert('Class Name غير صالح: '+c);return;}
+    if(sc[c]){alert('Class Name مكرر: '+c);return;} sc[c]=1; classNames.push(c);}
+  const gone=(D.stages||[]).filter(g=>!seen[g]);
   if(gone.length&&!confirm('ستُحذف هذه المراحل من السنة: '+gone.join('، ')+'\nمتابعة؟'))return;
-  api('saveYear',{academicYear:document.getElementById('ay').value,yearStart:document.getElementById('ys').value,yearEnd:document.getElementById('ye').value,stages:stages})
-    .then(st=>{applyState(st);settings();alert('تم حفظ مراحل السنة ('+(st.stages||[]).length+')')}).catch(apiError)}
+  api('saveYear',{academicYear:document.getElementById('ay').value,yearStart:document.getElementById('ys').value,yearEnd:document.getElementById('ye').value,stages:stages,classNames:classNames})
+    .then(st=>{applyState(st);settings();alert('تم الحفظ: '+(st.stages||[]).length+' مرحلة، '+((st.classNames||[]).length)+' Class Name')}).catch(apiError)}
 function saveYear(){api('saveYear',{academicYear:document.getElementById('ay').value,yearStart:document.getElementById('ys').value,yearEnd:document.getElementById('ye').value}).then(st=>{applyState(st);alert('تم حفظ إعدادات العام')}).catch(apiError)}
 function saveInst(){api('saveInst',{installments:D.installments.map(i=>({id:i.id,from:document.getElementById('f'+i.id).value,to:document.getElementById('t'+i.id).value,target:+document.getElementById('x'+i.id).value||0}))}).then(st=>{applyState(st);alert('تم حفظ الأقساط والمستهدفات');settings();home()}).catch(apiError)}
 function saveRules(){api('saveRules',{rules:D.rules.map((r,n)=>({name:r.name,q1:+document.getElementById('a'+n).value||0,q2:+document.getElementById('b'+n).value||0,q3:+document.getElementById('c'+n).value||0}))}).then(st=>{applyState(st);alert('تم حفظ نسب السداد')}).catch(apiError)}
@@ -1294,6 +1335,11 @@ function validateImportRows(rows, state){
   var bad=IMPORT_HEADERS.filter(function(h,i){return hdr[i]!==h.toLowerCase();});
   if(bad.length){res.headerError='أسماء الأعمدة غير مطابقة للنموذج. المطلوب: '+IMPORT_HEADERS.join(' | ');return res;}
   var stageByKey={}; (state.stages||[]).forEach(function(g){stageByKey[normStageKey(g)]=g;});
+  // first import of the year: the lists are created from this very file, so nothing is rejected for
+  // being absent from an empty list. Once they exist they are authoritative (same rule as the server).
+  var bootstrapStages=!(state.stages||[]).length, bootstrapClasses=!(state.classNames||[]).length;
+  var classSet={}; (state.classNames||[]).forEach(function(c){classSet[String(c).toUpperCase()]=1;});
+  res.newStages={}; res.newClassNames={};
   var byCode={}; (state.students||[]).forEach(function(s){byCode[String(s.code||s.ser).trim()]=s;});
   var seen={};
   for(var i=1;i<rows.length;i++){
@@ -1307,8 +1353,11 @@ function validateImportRows(rows, state){
     if(name==='') errs.push('Student Name فارغ');
     if(code!==''&&seen[code]) errs.push('Student Code مكرر داخل الملف (الصف '+seen[code]+')');
     var stageKey=normStageKey(stage), stageName=stageByKey[stageKey];
-    if(stageRaw===''||!stageName) errs.push('Stage غير موجودة ضمن مراحل السنة الحالية: "'+stageRaw+'"');
+    if(!stageName&&bootstrapStages&&stageKey){ stageName=stageKey; res.newStages[stageKey]=1; }
+    if(stageRaw===''||!stage) errs.push('Stage غير موجودة ضمن مراحل السنة الحالية: "'+stageRaw+'"');
+    else if(!stageName) errs.push('Stage غير موجودة ضمن مراحل السنة الحالية: "'+stageRaw+'"');
     if(cls&&!/^[A-Z0-9]{1,4}$/.test(cls)) errs.push('Class Name غير صالح: "'+clsRaw+'"');
+    else if(cls&&!classSet[cls]){ if(bootstrapClasses) res.newClassNames[cls]=1; else errs.push('Class Name غير موجود ضمن فصول السنة الحالية: "'+clsRaw+'"'); }
     if(deptRaw&&!dept) errs.push('Department غير صالح: "'+deptRaw+'"');
     var active=parseActiveCell(act); if(active===null) errs.push('Active يجب أن تكون TRUE أو FALSE');
     var existing=code!==''?byCode[code]:null, action='add';
