@@ -441,7 +441,23 @@ function describeNonJsonResponse(r,text){
   else if(/error|exception/.test(low)) hint='الخادم أعاد صفحة خطأ من Apps Script — راجع Executions في محرر Apps Script لمعرفة سبب الخطأ.';
   return 'الخادم أعاد صفحة HTML بدلًا من JSON (HTTP '+r.status+(title?' — '+title.trim():'')+'). '+hint;
 }
-function applyState(state){D=state;if(!Array.isArray(D.discounts))D.discounts=[];ensureStudentData();populateStageFilter();}
+/* PAYLOAD FIX (regression investigation, Sep 2026): the backend no longer sends studentName/installmentName
+   on each allocation, or studentName on each discount — those duplicated D.students[].name / D.installments[].name
+   for the same id and were ~38-40% of load payload bytes at realistic run volumes (measured). Re-derive them here,
+   once, right after the state arrives, so every existing read site (studentsView exports, distribution history,
+   collections report, reports/exports) keeps working unchanged — same field names, same values, same shape as before. */
+function hydrateAllocationNames_(){
+  const sMap={};(D.students||[]).forEach(s=>{sMap[String(s.ser)]=s.name;});
+  const iMap={};(D.installments||[]).forEach(i=>{iMap[Number(i.id)]=i.name;});
+  (D.allocations||[]).forEach(a=>{
+    if(a.studentName===undefined)a.studentName=sMap[String(a.studentId)]||'';
+    if(a.installmentName===undefined)a.installmentName=iMap[Number(a.installmentId)]||('القسط '+a.installmentId);
+  });
+  (D.discounts||[]).forEach(d=>{
+    if(d.studentName===undefined)d.studentName=sMap[String(d.studentId)]||'';
+  });
+}
+function applyState(state){D=state;if(!Array.isArray(D.discounts))D.discounts=[];hydrateAllocationNames_();ensureStudentData();populateStageFilter();}
 function populateStageFilter(){const el=document.getElementById('sg');if(!el)return;const cur=el.value;el.innerHTML='<option value="">كل المراحل</option>'+(D.stages||[]).map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');el.value=(D.stages||[]).includes(cur)?cur:'';}
 function apiError(err){alert('خطأ في الاتصال بالخادم: '+(err.message||err));}
 /* Initial load: loading state (no fake zeros) + bounded automatic retry (3 attempts) + explicit error state with manual retry. */
