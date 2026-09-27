@@ -1,7 +1,37 @@
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script>/* item 4 (Sep 2026): T0 — earliest possible point JS can run, right after charset/viewport parse.
+   Console-only diagnostic timeline; never shown in the UI, changes nothing visible. */
+window._PERF_T0=performance.now(); performance.mark('T0_page_start');
+document.addEventListener('DOMContentLoaded',function(){ performance.mark('T1_dom_content_loaded'); });
+</script>
 <title>نظام تحصيلات الطلبة</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- item 6 (Sep 2026): non-blocking stylesheet load — same font, same href, but the browser no longer
+     waits for this CSS before it can render. rel=preload+onload is the standard technique; the <noscript>
+     fallback keeps the exact old (blocking, always-correct) behavior if JS is off. Visual result identical. -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<!-- item 5 (Sep 2026): XLSX (0.18.5 full, ~1MB) no longer loads eagerly here — a synchronous script tag
+     in <head> blocks HTML parsing (and therefore the loading overlay's own first paint) until it finishes
+     downloading+executing. It's only ever used by uploadMaster()/handleImportFile() (both file-upload
+     handlers) — ensureXLSX_() below lazy-loads it on first actual use, transparently (the click just waits
+     a moment the first time). Nothing else in the app touches the XLSX global — downloadExcelXml() and the
+     template/master downloads build .xls XML by hand and never needed this library at all. -->
+<script>
+var _xlsxLoadPromise=null;
+function ensureXLSX_(){
+  if(typeof XLSX!=='undefined') return Promise.resolve();
+  if(_xlsxLoadPromise) return _xlsxLoadPromise;
+  _xlsxLoadPromise=new Promise(function(resolve,reject){
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=function(){resolve();};
+    s.onerror=function(){_xlsxLoadPromise=null;reject(new Error('تعذر تحميل مكتبة قراءة Excel — تحقق من الاتصال بالإنترنت.'));};
+    document.head.appendChild(s);
+  });
+  return _xlsxLoadPromise;
+}
+</script>
 <style>
 body{margin:0;font-family:Arial;background:#f4f7fa;color:#17212b}header{background:#123166;color:#fff;padding:18px 22px}
 main{max-width:1250px;margin:18px auto;padding:0 14px}nav{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:15px}
@@ -418,16 +448,31 @@ function discountsFor(pred){return (D.discounts||[]).filter(pred||(()=>true));}
 function sumDiscounts(pred){return money2(discountsFor(pred).reduce((x,d)=>x+money2(d.amount),0));}
 async function api(action,payload,opts){
   /* opts.timeoutMs (used by the initial load only) aborts a request that never settles; without it fetch waits
-     for the browser's own limit (minutes), which leaves the loading screen up with no recovery. */
+     for the browser's own limit (minutes), which leaves the loading screen up with no recovery.
+     opts.perf (item 4/8, Sep 2026): only set by the initial apiLoad() call — records network/parse timing into
+     window._PERF_LOAD and captures the backend's own `_timing` from a REAL request/response (not the editor),
+     so item 1's "use the deployed Web App as the source of truth" is answered directly, every time it loads. */
   const ms=opts&&opts.timeoutMs, ctl=(ms&&typeof AbortController!=='undefined')?new AbortController():null;
   const timer=ctl?setTimeout(()=>ctl.abort(),ms):null;
+  const perf=opts&&opts.perf, tFetchStart=perf?performance.now():0;
+  if(perf) performance.mark('T3_fetch_start');
   let r;
   try{ r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload:payload||{}}),signal:ctl?ctl.signal:undefined}); }
   catch(e){ if(ctl&&ctl.signal.aborted) throw new Error('انتهت مهلة الاتصال بالخادم ('+Math.round(ms/1000)+' ثانية) دون رد.'); throw e; }
   finally{ if(timer) clearTimeout(timer); }
-  const text=await r.text(); let j;
+  if(perf) performance.mark('T4_response_received');
+  const tTextStart=perf?performance.now():0;
+  const text=await r.text();
+  const tTextDone=perf?performance.now():0;
+  let j;
   try{ j=JSON.parse(text); }
   catch(e){ throw new Error(describeNonJsonResponse(r,text)); }
+  if(perf){
+    const tParseDone=performance.now();
+    performance.mark('T5_json_parse_done');
+    window._PERF_LOAD={network_ms:tTextStart-tFetchStart, response_text_ms:tTextDone-tTextStart, json_parse_ms:tParseDone-tTextDone,
+      response_bytes:text.length, backend_timing:j&&j._timing||null};
+  }
   if(!j.ok)throw new Error(j.error||'API error');
   return j.data;
 }
@@ -457,7 +502,21 @@ function hydrateAllocationNames_(){
     if(d.studentName===undefined)d.studentName=sMap[String(d.studentId)]||'';
   });
 }
-function applyState(state){D=state;if(!Array.isArray(D.discounts))D.discounts=[];hydrateAllocationNames_();ensureStudentData();populateStageFilter();}
+function applyState(state){
+  const t0=performance.now();
+  D=state;if(!Array.isArray(D.discounts))D.discounts=[];
+  const t1=performance.now();
+  hydrateAllocationNames_();
+  const t2=performance.now();
+  ensureStudentData();
+  const t3=performance.now();
+  populateStageFilter();
+  const t4=performance.now();
+  // item 7 (Sep 2026): per-substep timing + row counts, console-only, so O(N) can be checked directly
+  // against real data instead of assumed.
+  window._PERF_APPLYSTATE={total_ms:t4-t0, hydrate_ms:t2-t1, ensure_ms:t3-t2, stagefilter_ms:t4-t3,
+    students:(D.students||[]).length, allocations:(D.allocations||[]).length, discounts:(D.discounts||[]).length, installments:(D.installments||[]).length};
+}
 function populateStageFilter(){const el=document.getElementById('sg');if(!el)return;const cur=el.value;el.innerHTML='<option value="">كل المراحل</option>'+(D.stages||[]).map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');el.value=(D.stages||[]).includes(cur)?cur:'';}
 function apiError(err){alert('خطأ في الاتصال بالخادم: '+(err.message||err));}
 /* Initial load: loading state (no fake zeros) + bounded automatic retry (3 attempts) + explicit error state with manual retry. */
@@ -471,15 +530,49 @@ function setLoadingState(mode,msg){
   if(mode==='loading'){t.textContent='⏳ جارٍ تحميل البيانات من الخادم...';x.textContent=msg||'يتم الآن جلب الطلبة والمراحل وإعدادات العام. لا تظهر أي أرقام قبل اكتمال التحميل.';a.classList.add('hidden');}
   else{t.textContent='⚠️ تعذر الاتصال بالخادم';x.textContent=msg||'';a.classList.remove('hidden');}
 }
+/** item 4 (Sep 2026): prints the full PAGE_START→usable-UI timeline (console only, never shown to the
+ *  user) — network wait, response.text(), JSON.parse, applyState + its substeps, show('home'), and the
+ *  REAL backend `_timing` from this exact request (answers item 1's "use the deployed Web App itself"). */
+function logPerfTimeline_(){
+  try{
+    const T0=window._PERF_T0||0;
+    const marks={}; performance.getEntriesByType('mark').forEach(m=>{ marks[m.name]=m.startTime; });
+    const L=window._PERF_LOAD||{}, A=window._PERF_APPLYSTATE||{};
+    const d=(a,b)=>(a!=null&&b!=null)?+(a-b).toFixed(1):null;
+    const rows=[
+      {phase:'T0 page start → T1 DOMContentLoaded', ms:d(marks.T1_dom_content_loaded,T0)},
+      {phase:'T1 → T2 apiLoad() start', ms:d(marks.T2_apiLoad_start,marks.T1_dom_content_loaded)},
+      {phase:'fetch (network wait)', ms:L.network_ms!=null?+L.network_ms.toFixed(1):null},
+      {phase:'response.text()', ms:L.response_text_ms!=null?+L.response_text_ms.toFixed(1):null},
+      {phase:'JSON.parse', ms:L.json_parse_ms!=null?+L.json_parse_ms.toFixed(1):null},
+      {phase:'applyState (total)', ms:A.total_ms!=null?+A.total_ms.toFixed(1):null},
+      {phase:'  hydrateAllocationNames_', ms:A.hydrate_ms!=null?+A.hydrate_ms.toFixed(1):null},
+      {phase:'  ensureStudentData', ms:A.ensure_ms!=null?+A.ensure_ms.toFixed(1):null},
+      {phase:'  populateStageFilter', ms:A.stagefilter_ms!=null?+A.stagefilter_ms.toFixed(1):null},
+      {phase:"show('home')", ms:d(marks.T7_show_done,marks.T6_applystate_done)},
+      {phase:'overlay hidden → first paint', ms:d(marks.T9_first_usable_paint,marks.T8_overlay_hidden)},
+      {phase:'TOTAL page open → usable UI', ms:d(marks.T9_first_usable_paint,T0)}
+    ];
+    console.log('%cPERF TIMELINE (ms) — تشخيص فقط، لا يظهر للمستخدم','font-weight:bold');
+    console.table(rows);
+    console.log('response bytes='+L.response_bytes+' | students/allocations/discounts='+A.students+'/'+A.allocations+'/'+A.discounts);
+    if(L.backend_timing) console.log('BACKEND _timing (real deployed Web App, this request):', L.backend_timing);
+  }catch(e){ /* diagnostic only — must never affect the app */ }
+}
 async function apiLoad(){
   APP_LOADED=false;
+  performance.mark('T2_apiLoad_start');
   for(let attempt=1;attempt<=INITIAL_LOAD_RETRIES;attempt++){
     setLoadingState('loading',attempt>1?`محاولة ${attempt} من ${INITIAL_LOAD_RETRIES}...`:undefined);
     try{
-      applyState(await api('load',{},{timeoutMs:INITIAL_LOAD_TIMEOUT_MS}));
+      applyState(await api('load',{},{timeoutMs:INITIAL_LOAD_TIMEOUT_MS, perf:true}));
+      performance.mark('T6_applystate_done');
       APP_LOADED=true;
       show(document.querySelector('nav button[data-module].active')?.getAttribute('data-module')||'home');
+      performance.mark('T7_show_done');
       setLoadingState('loaded');
+      performance.mark('T8_overlay_hidden');
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{ performance.mark('T9_first_usable_paint'); logPerfTimeline_(); }));
       return true;
     }catch(err){
       if(attempt<INITIAL_LOAD_RETRIES){await new Promise(r=>setTimeout(r,INITIAL_LOAD_DELAYS_MS[attempt-1]||3000));continue;}
@@ -1338,7 +1431,11 @@ function exportSingleStudentExcel(id){
 }
 
 ensureStudentData();
-if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',()=>show('home'));}else{show('home');}
+/* item 10 (Sep 2026 investigation): home() used to render twice — once here with D still empty (before any
+   data arrives), and once again inside apiLoad() once the real state is in. #loadingOverlay has no "hidden"
+   class in the markup, so it's already covering the screen at first paint — this early render was 100% wasted
+   work underneath it, never actually seen. apiLoad() already calls show(...) once data (or a final error) is
+   ready, so that single call is the only render needed; removing this one changes nothing visible. */
 apiLoad();
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -1485,8 +1582,9 @@ function parseMasterRows(rows){
     out.push({row:r+1,code:g('Student Code'),name:g('Student Name'),installment:g('Installment Type'),expense:g('Expense Type'),amount:g('Amount')}); }
   return {rows:out};
 }
-function uploadMaster(input){
+async function uploadMaster(input){
   var file=input.files&&input.files[0]; if(!file)return;
+  try{ await ensureXLSX_(); }catch(err){ alert(err.message); input.value=''; return; }
   var reader=new FileReader();
   reader.onload=function(e){
     try{
@@ -1607,11 +1705,12 @@ function validateImportRows(rows, state){
 }
 
 /* ---------- UI: upload → preview → commit ---------- */
-function handleImportFile(input){
+async function handleImportFile(input){
   var file=input.files&&input.files[0]; if(!file)return;
   var out=document.getElementById('importOutput');
   if(!/\.xlsx$/i.test(file.name)){out.innerHTML='<p class="warn">مسموح برفع ملفات .xlsx فقط.</p>';input.value='';return;}
-  if(typeof XLSX==='undefined'){out.innerHTML='<p class="warn">مكتبة قراءة Excel غير متاحة (تحقق من الاتصال بالإنترنت).</p>';input.value='';return;}
+  out.innerHTML='<p class="muted">جارٍ تحميل مكتبة القراءة...</p>';
+  try{ await ensureXLSX_(); }catch(err){ out.innerHTML='<p class="warn">'+escapeHtml(err.message)+'</p>';input.value='';return; }
   out.innerHTML='<p class="muted">جارٍ قراءة الملف والتحقق...</p>';
   var reader=new FileReader();
   reader.onload=function(e){
