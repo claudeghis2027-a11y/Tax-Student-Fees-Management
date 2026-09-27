@@ -6,6 +6,10 @@ document.addEventListener('DOMContentLoaded',function(){ performance.mark('T1_do
 </script>
 <title>نظام تحصيلات الطلبة</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- PERF (Sep 2026): warm the TLS connections for the two legs every API call takes (exec POST -> 302 -> echo GET).
+     The echo origin's connection otherwise only starts AFTER the 302 arrives. `crossorigin` matches fetch()'s
+     anonymous (no-credentials) connection pool. A connection hint, not an HTTP request; no behaviour change. -->
+<link rel="preconnect" href="https://script.google.com" crossorigin><link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <!-- item 6 (Sep 2026): non-blocking stylesheet load — same font, same href, but the browser no longer
      waits for this CSS before it can render. rel=preload+onload is the standard technique; the <noscript>
      fallback keeps the exact old (blocking, always-correct) behavior if JS is off. Visual result identical. -->
