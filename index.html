@@ -260,23 +260,20 @@ th{font-weight:600}table{font-size:14px}
 <div><label>عدد المراحل</label><div class="big" id="hst">0</div></div><div><label>إجمالي المستهدفات</label><div class="big" id="ht"></div></div></div></section>
 
 <section id="settings" class="hidden">
-<div class="card"><h3>⚙️ إعدادات العام — قابلة للتعديل</h3><div class="grid">
+<div class="card"><h3>⚙️ السنة الدراسية</h3><div class="grid">
 <div><label>السنة الدراسية</label><input id="ay"></div><div><label>بداية السنة</label><input id="ys" type="date"></div><div><label>نهاية السنة</label><input id="ye" type="date"></div></div><button onclick="saveYear()">💾 حفظ</button></div>
-<div class="card"><h3>🏫 مراحل السنة الحالية</h3><p class="muted">المراحل المعتمدة للسنة — المصدر الوحيد للنموذج والاستيراد ولائحة المصروفات.</p><div class="scroll"><table><thead><tr><th>المرحلة</th><th>القسم</th><th></th></tr></thead><tbody id="stageRows"></tbody></table></div><div id="stageMsg" class="muted"></div><button type="button" onclick="addStageRow()">➕ إضافة مرحلة</button> <button onclick="saveStages()">💾 حفظ المراحل</button></div>
-<div class="card"><h3>🏷️ Class Names</h3><p class="muted">قائمة الفصول المتاحة في السنة (A، B، C…). مستقلة تمامًا عن المرحلة والقسم، وتُحفظ مع الطالب نفسه.</p><div class="scroll"><table><thead><tr><th>Class Name</th><th></th></tr></thead><tbody id="classRows"></tbody></table></div><div id="classMsg" class="muted"></div><button type="button" onclick="addClassRow()">➕ إضافة Class Name</button> <button onclick="saveStages()">💾 حفظ الفصول</button></div>
-<div class="card"><h3>📅 الأقساط والمستهدفات</h3><table><thead><tr><th>القسط</th><th>من</th><th>إلى</th><th>المستهدف</th><th>الموزع</th><th>المرحل</th></tr></thead><tbody id="inst"></tbody></table><button onclick="saveInst()">💾 حفظ</button></div>
-<div class="card"><h3>💰 نسب السداد</h3><table><thead><tr><th>المصروف</th><th>الأول</th><th>الثاني</th><th>الثالث</th></tr></thead><tbody id="rules"></tbody></table><button onclick="saveRules()">💾 حفظ</button></div>
-<div class="card"><h3>📋 لائحة المصاريف</h3><p class="muted">كل البنود والمبالغ تُدخل وتُعدّل من هنا. أي تعديل يسري على العمليات الجديدة فقط؛ التوزيعات السابقة محفوظة بمبالغها، وكل تغيير سعر يُسجَّل.</p>
+<div class="card"><h3>🏫 المراحل</h3><p class="muted">مستقلة عن القسم وعن Class Name. الحذف مسموح فقط للمرحلة غير المستخدمة.</p><div class="scroll"><table><thead><tr><th>المرحلة</th><th>الطلاب</th><th></th></tr></thead><tbody id="stageRows"></tbody></table></div>
+<div class="grid" style="margin-top:8px"><div><input id="newStage" placeholder="مرحلة جديدة (مثال: G7)"></div><div><button type="button" onclick="masterAdd('stage')">➕ إضافة</button></div></div><div id="stageMsg" class="muted"></div></div>
+<div class="card"><h3>🏷️ Class Names</h3><p class="muted">مستقلة عن المرحلة والقسم. الحذف مسموح فقط لـ Class Name غير المستخدم.</p><div class="scroll"><table><thead><tr><th>Class Name</th><th>الطلاب</th><th></th></tr></thead><tbody id="classRows"></tbody></table></div>
+<div class="grid" style="margin-top:8px"><div><input id="newClass" placeholder="Class Name جديد (مثال: A)"></div><div><button type="button" onclick="masterAdd('class')">➕ إضافة</button></div></div><div id="classMsg" class="muted"></div></div>
+<div class="card"><h3>🏛️ الأقسام</h3><p class="muted">مستقلة عن المرحلة. الحذف مسموح فقط للقسم غير المستخدم. الطالب بلا قسم يظل بلا قسم.</p><div class="scroll"><table><thead><tr><th>القسم</th><th>الطلاب</th><th></th></tr></thead><tbody id="deptRows"></tbody></table></div>
+<div class="grid" style="margin-top:8px"><div><input id="newDept" placeholder="قسم جديد"></div><div><button type="button" onclick="masterAdd('dept')">➕ إضافة</button></div></div><div id="deptMsg" class="muted"></div></div>
+<div class="card"><h3>🧾 أنواع المصروفات</h3><p class="muted">خمسة أنواع ثابتة: لا إضافة ولا حذف ولا إعادة تسمية. يمكن فقط ضبط الإجباري/الاختياري والتفعيل وطريقة المبلغ.</p>
+<div class="scroll"><table><thead><tr><th>النوع</th><th>إجباري/اختياري</th><th>الحالة</th><th>طريقة المبلغ</th></tr></thead><tbody id="feeItems"></tbody></table></div>
+<button onclick="saveFees()">💾 حفظ</button></div>
+<div class="card"><h3>📋 لائحة المصروفات</h3><p class="muted">أي تعديل يسري على العمليات الجديدة فقط؛ التوزيعات السابقة محفوظة بمبالغها، وكل تغيير سعر يُسجَّل.</p>
 <div id="feeWarn" class="warn" style="display:none;margin-bottom:8px"></div>
-<h4 style="margin:10px 0 4px">البنود</h4>
-<div class="scroll"><table><thead><tr><th>البند</th><th>النوع</th><th>الحالة</th><th>طريقة المبلغ</th></tr></thead><tbody id="feeItems"></tbody></table></div>
-<details style="margin:8px 0"><summary class="alt small-btn" style="display:inline-block;cursor:pointer">➕ إضافة بند</summary>
-<div class="grid" style="margin-top:8px"><div><label>اسم البند</label><input id="ni_name"></div>
-<div><label>النوع</label><select id="ni_mand"><option value="1">إجباري</option><option value="0">اختياري</option></select></div>
-<div><label>طريقة المبلغ</label><select id="ni_level"><option value="GROUP">حسب المجموعات</option><option value="FLAT">مبلغ واحد لكل المراحل</option></select></div>
-<div><label>نسبة القسط 1 %</label><input id="ni_q1" type="number" min="0" max="100"></div><div><label>نسبة القسط 2 %</label><input id="ni_q2" type="number" min="0" max="100"></div><div><label>نسبة القسط 3 %</label><input id="ni_q3" type="number" min="0" max="100"></div></div>
-<button type="button" onclick="addFeeItem()">➕ إضافة البند</button></details>
-<h4 style="margin:12px 0 4px">المبالغ حسب مجموعات المراحل</h4>
+<h4 style="margin:10px 0 4px">المبالغ حسب مجموعات المراحل</h4>
 <div id="feeGroupsWrap" class="scroll"></div>
 <button type="button" class="alt small-btn" onclick="addFeeGroup()">➕ إضافة مجموعة</button>
 <h4 style="margin:12px 0 4px">بنود بمبلغ واحد لكل المراحل</h4>
@@ -285,7 +282,11 @@ th{font-weight:600}table{font-size:14px}
 <p class="muted">المرحلة تأخذ مبلغ مجموعتها تلقائيًا؛ أضف سطرًا هنا فقط لو مرحلة معيّنة تختلف عن مجموعتها في بند معيّن.</p>
 <div class="scroll"><table><thead><tr><th>القسم</th><th>المرحلة</th><th>البند</th><th>المبلغ</th><th></th></tr></thead><tbody id="feeOverrides"></tbody></table></div>
 <button type="button" class="alt small-btn" onclick="addFeeOverride()">➕ تخصيص مرحلة</button>
+<details style="margin-top:12px"><summary id="feeCurrentTitle" style="cursor:pointer">📄 البنود الحالية</summary><div id="feeCurrent" class="scroll" style="margin-top:6px"></div></details>
 <div style="margin-top:12px"><button onclick="saveFees()">💾 حفظ اللائحة</button></div></div>
+<div class="card"><h3>📅 الأقساط والمستهدفات</h3><table><thead><tr><th>القسط</th><th>من</th><th>إلى</th><th>المستهدف</th><th>الموزع</th><th>المرحل</th></tr></thead><tbody id="inst"></tbody></table><button onclick="saveInst()">💾 حفظ</button></div>
+<div class="card"><h3>💰 نسب السداد</h3><table><thead><tr><th>المصروف</th><th>الأول</th><th>الثاني</th><th>الثالث</th></tr></thead><tbody id="rules"></tbody></table><button onclick="saveRules()">💾 حفظ</button></div>
+<div class="card"><h3>⚠️ بيانات غير معروفة</h3><p class="muted">قيم موجودة عند طلاب السنة وغير موجودة في القوائم أعلاه — للمراجعة فقط، لا يتم تصحيح أي شيء تلقائيًا.</p><div id="unknownValues"></div></div>
 </section>
 
 <section id="students" class="hidden"><div class="card"><h3>👨‍🎓 بيانات الطلبة</h3>
@@ -629,60 +630,70 @@ function home(){document.getElementById('hy').textContent=D.academicYear;documen
 function settings(){
 document.getElementById('ay').value=D.academicYear;document.getElementById('ys').value=D.yearStart;document.getElementById('ye').value=D.yearEnd;
 document.getElementById('inst').innerHTML=D.installments.map(i=>`<tr><td>${i.name}</td><td><input id="f${i.id}" type="date" value="${i.from}"></td><td><input id="t${i.id}" type="date" value="${i.to}"></td><td><input id="x${i.id}" type="number" value="${i.target}"></td><td>${fmtMoney(sumLines(a=>Number(a.installmentId)===Number(i.id)))}</td><td>${fmtMoney(i.carry)}</td></tr>`).join('');
-document.getElementById('rules').innerHTML=D.rules.map((r,n)=>`<tr><td>${r.name}</td><td><span style="display:flex;align-items:center;gap:2px"><input id="a${n}" type="number" value="${r.q1}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="b${n}" type="number" value="${r.q2}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="c${n}" type="number" value="${r.q3}"><b>%</b></span></td></tr>`).join('');
-renderYearStages();
+document.getElementById('rules').innerHTML=D.rules.map((r,n)=>`<tr><td>${escapeHtml(r.name)}${FEE_TYPES_FIXED.indexOf(r.name)<0?' <span class="muted">(تاريخي)</span>':''}${(Number(r.q1)||0)+(Number(r.q2)||0)+(Number(r.q3)||0)===0?' <span class="warn">⚠ غير مُعدّة</span>':''}</td><td><span style="display:flex;align-items:center;gap:2px"><input id="a${n}" type="number" value="${r.q1}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="b${n}" type="number" value="${r.q2}"><b>%</b></span></td><td><span style="display:flex;align-items:center;gap:2px"><input id="c${n}" type="number" value="${r.q3}"><b>%</b></span></td></tr>`).join('');
+renderMasters();
 feeEditorInit();
+renderUnknownValues();
 }
-const DEPT_OPTIONS=[{v:'ALL',t:'بدون قسم'},{v:'American',t:'أمريكي'},{v:'British',t:'بريطاني'}];
-let STAGE_ROWS=[], CLASS_ROWS=[];
-function stageUsage(g){return (D.students||[]).filter(s=>normStageKey(s.grade)===normStageKey(g)).length;}
-function classUsage(c){return (D.students||[]).filter(s=>String(s.className||'').toUpperCase()===String(c).toUpperCase()).length;}
-function feeUsage(g){return Object.keys(D.stageFees||{}).filter(k=>splitFeeKey(k).stage===normStageKey(g)).length;}
-function renderYearStages(){
-  STAGE_ROWS=((D.stageList&&D.stageList.length)?D.stageList:(D.stages||[]).map(g=>({stage:g,department:'ALL'})))
-    .map(x=>({stage:x.stage,department:x.department||'ALL'}));
-  CLASS_ROWS=(D.classNames||[]).slice();
-  renderStageRows(); renderClassRows();
+/* ===== Masters: Stages / Class Names / Departments — list + add + delete-if-unused. Each action is ONE saveYear
+   call that returns the new state (no reload). The server enforces the same "unused" rule (masterUsage_ in Code.gs). ===== */
+const FEE_TYPES_FIXED=['تعليم','نشاط','باص','كتب الوزارة','كتب خارجية'];   // identifiers as stored — never renamed
+const DEPT_ALIASES={'BR':'British','BRITISH':'British','AM':'American','AMERICAN':'American'};
+function deptAlias(v){v=String(v==null?'':v).trim(); return v?(DEPT_ALIASES[v.toUpperCase()]||v):'';}
+function masterUsage(kind,v){
+  const st=D.students||[], F=Object.keys(D.stageFees||{}).map(splitFeeKey), G=D.feeGroups||[]; let n=0,fees=0,groups=0;
+  if(kind==='stage'){const g=normStageKey(v); n=st.filter(s=>normStageKey(s.grade)===g).length; fees=F.filter(k=>k.stage===g).length; groups=G.filter(x=>(x.stages||[]).indexOf(g)>=0).length;}
+  else if(kind==='class'){const c=String(v).toUpperCase(); n=st.filter(s=>String(s.className||'').toUpperCase()===c).length;}
+  else {n=st.filter(s=>s.department===v).length; fees=F.filter(k=>k.dept===v).length; groups=G.filter(x=>x.department===v).length;}
+  const why=[]; if(n)why.push(n+' طالب'); if(fees)why.push('لائحة المصروفات'); if(groups)why.push('مجموعات اللائحة');
+  return {n,why:why.join('، ')};
 }
-function renderStageRows(){
-  const b=document.getElementById('stageRows'); if(!b)return;
-  b.innerHTML=STAGE_ROWS.map((r,i)=>`<tr><td><input id="sg_${i}" value="${r.stage}"></td><td><select id="sd_${i}">`+
-    DEPT_OPTIONS.map(o=>`<option value="${o.v}"${o.v===r.department?' selected':''}>${o.t}</option>`).join('')+
-    `</select></td><td><button type="button" class="alt small-btn" onclick="removeStageRow(${i})">✖</button></td></tr>`).join('');
-  const m=document.getElementById('stageMsg');
-  if(m)m.textContent=STAGE_ROWS.length?(STAGE_ROWS.length+' مرحلة'):'لا توجد مراحل بعد — ستُنشأ تلقائيًا من أول ملف طلبة تستورده.';
+const MASTER={
+  stage:{list:()=>D.stages||[], key:'stages', body:'stageRows', msg:'stageMsg', input:'newStage', label:'المرحلة', norm:v=>normStageKey(v)},
+  class:{list:()=>D.classNames||[], key:'classNames', body:'classRows', msg:'classMsg', input:'newClass', label:'Class Name', norm:v=>String(v||'').trim().toUpperCase()},
+  dept:{list:()=>D.departments||[], key:'departments', body:'deptRows', msg:'deptMsg', input:'newDept', label:'القسم', norm:v=>deptAlias(v)}
+};
+function renderMasters(){
+  Object.keys(MASTER).forEach(kind=>{const M=MASTER[kind], b=document.getElementById(M.body); if(!b)return; const list=M.list();
+    b.innerHTML=list.map(v=>`<tr><td>${escapeHtml(kind==='dept'&&deptLabel(v)!==v?deptLabel(v)+' ('+v+')':v)}</td><td>${masterUsage(kind,v).n}</td>`+
+      `<td><button type="button" class="alt small-btn" onclick="masterRemove('${kind}',this.dataset.v)" data-v="${escapeHtml(v)}">✖</button></td></tr>`).join('')||
+      `<tr><td colspan="3" class="muted">لا توجد قيم بعد</td></tr>`;
+    const m=document.getElementById(M.msg); if(m&&!m.dataset.keep){m.className='muted';m.textContent=list.length+' '+M.label+(kind==='dept'&&D.departmentsBootstrap&&list.length?' — مستخرجة من البيانات الحالية وتُحفظ مع أول حفظ للإعدادات':'');} if(m)delete m.dataset.keep;});
 }
-function renderClassRows(){
-  const b=document.getElementById('classRows'); if(!b)return;
-  b.innerHTML=CLASS_ROWS.map((c,i)=>`<tr><td><input id="cn_${i}" value="${c}"></td><td><button type="button" class="alt small-btn" onclick="removeClassRow(${i})">✖</button></td></tr>`).join('');
-  const m=document.getElementById('classMsg');
-  if(m)m.textContent=CLASS_ROWS.length?(CLASS_ROWS.length+' Class Name'):'لا توجد فصول بعد — ستُنشأ تلقائيًا من أول ملف طلبة تستورده.';
+function masterMsg(kind,text,bad){const m=document.getElementById(MASTER[kind].msg); if(!m)return; m.textContent=text; m.className=bad?'warn':'ok'; m.dataset.keep='1';}
+function masterSave(kind,list,okText){
+  api('saveYear',{[MASTER[kind].key]:list}).then(st=>{applyState(st);masterMsg(kind,okText,false);settings();}).catch(err=>masterMsg(kind,err.message||String(err),true));
 }
-function collectStageRows(){STAGE_ROWS.forEach((r,i)=>{const n=document.getElementById('sg_'+i),d=document.getElementById('sd_'+i);
-  if(n)r.stage=normStageKey(n.value); if(d)r.department=d.value||'ALL';});}
-function collectClassRows(){CLASS_ROWS=CLASS_ROWS.map((c,i)=>{const e=document.getElementById('cn_'+i);return e?String(e.value||'').trim().toUpperCase():c;});}
-function addStageRow(){collectStageRows();collectClassRows();STAGE_ROWS.push({stage:'',department:'ALL'});renderStageRows();}
-function addClassRow(){collectStageRows();collectClassRows();CLASS_ROWS.push('');renderClassRows();}
-function removeStageRow(i){collectStageRows();collectClassRows();const g=STAGE_ROWS[i]&&STAGE_ROWS[i].stage;
-  if(g){const n=stageUsage(g),f=feeUsage(g);
-    if(n){alert('لا يمكن حذف المرحلة '+g+' لأن بها '+n+' طالبًا.');return;}
-    if(f&&!confirm('للمرحلة '+g+' صفوف في لائحة المصروفات. حذفها من السنة؟'))return;}
-  STAGE_ROWS.splice(i,1);renderStageRows();}
-function removeClassRow(i){collectStageRows();collectClassRows();const c=CLASS_ROWS[i];
-  if(c){const n=classUsage(c); if(n){alert('لا يمكن حذف Class Name '+c+' لأنه مستخدم لدى '+n+' طالبًا.');return;}}
-  CLASS_ROWS.splice(i,1);renderClassRows();}
-function saveStages(){
-  collectStageRows(); collectClassRows();
-  const seen={}, stages=[];
-  for(const r of STAGE_ROWS){const g=normStageKey(r.stage); if(!g)continue; if(seen[g]){alert('مرحلة مكررة: '+g);return;} seen[g]=1; stages.push({stage:g,department:r.department||'ALL'});}
-  const sc={}, classNames=[];
-  for(const c0 of CLASS_ROWS){const c=String(c0||'').trim().toUpperCase(); if(!c)continue;
-    if(!/^[A-Z0-9]{1,4}$/.test(c)){alert('Class Name غير صالح: '+c);return;}
-    if(sc[c]){alert('Class Name مكرر: '+c);return;} sc[c]=1; classNames.push(c);}
-  const gone=(D.stages||[]).filter(g=>!seen[g]);
-  if(gone.length&&!confirm('ستُحذف هذه المراحل من السنة: '+gone.join('، ')+'\nمتابعة؟'))return;
-  api('saveYear',{academicYear:document.getElementById('ay').value,yearStart:document.getElementById('ys').value,yearEnd:document.getElementById('ye').value,stages:stages,classNames:classNames})
-    .then(st=>{applyState(st);settings();alert('تم الحفظ: '+(st.stages||[]).length+' مرحلة، '+((st.classNames||[]).length)+' Class Name')}).catch(apiError)}
+function masterAdd(kind){
+  const M=MASTER[kind], inp=document.getElementById(M.input), v=M.norm(inp&&inp.value);
+  if(!v){masterMsg(kind,'اكتب القيمة أولًا',true);return;}
+  if(kind==='class'&&!/^[A-Z0-9]{1,4}$/.test(v)){masterMsg(kind,'Class Name غير صالح: '+v,true);return;}
+  if(kind==='dept'&&v.toUpperCase()==='ALL'){masterMsg(kind,'«ALL» محجوز للائحة المصروفات',true);return;}
+  if(M.list().indexOf(v)>=0){masterMsg(kind,M.label+' «'+v+'» موجود بالفعل',true);return;}
+  masterSave(kind,M.list().concat([v]),'تمت إضافة '+M.label+' «'+v+'»');
+}
+function masterRemove(kind,v){
+  const M=MASTER[kind], u=masterUsage(kind,v);
+  if(u.why){masterMsg(kind,'لا يمكن حذف '+M.label+' «'+v+'» لأنه مستخدم: '+u.why,true);return;}
+  if(!confirm('حذف '+M.label+' «'+v+'»؟'))return;
+  masterSave(kind,M.list().filter(x=>x!==v),'تم حذف '+M.label+' «'+v+'»');
+}
+/* Values used by the year's students but absent from the masters — reported only, never corrected. */
+function unknownMasterValues(state){
+  const st=state.students||[], S={}, C={}, out={stage:{},class:{},dept:{}};
+  (state.stages||[]).forEach(g=>S[normStageKey(g)]=1); (state.classNames||[]).forEach(c=>C[String(c).toUpperCase()]=1);
+  st.forEach(s=>{const g=String(s.grade||'').trim(), c=String(s.className||'').trim().toUpperCase();
+    if(g&&!S[normStageKey(g)])out.stage[g]=(out.stage[g]||0)+1;
+    if(c&&!C[c])out.class[c]=(out.class[c]||0)+1;
+    if(s.deptRaw)out.dept[s.deptRaw]=(out.dept[s.deptRaw]||0)+1;});
+  return out;
+}
+function renderUnknownValues(){
+  const el=document.getElementById('unknownValues'); if(!el)return; const u=unknownMasterValues(D);
+  const part=(title,m)=>{const k=Object.keys(m); return k.length?`<p><b>${title}:</b> `+k.map(v=>escapeHtml(v)+' — '+m[v]+' طالب').join('، ')+'</p>':'';};
+  const html=part('Stage',u.stage)+part('Class Name',u.class)+part('Department',u.dept);
+  el.innerHTML=html?'<div class="warn">⚠ قيم غير معروفة</div>'+html:'<p class="ok">لا توجد قيم غير معروفة.</p>';
+}
 function saveYear(){api('saveYear',{academicYear:document.getElementById('ay').value,yearStart:document.getElementById('ys').value,yearEnd:document.getElementById('ye').value}).then(st=>{applyState(st);alert('تم حفظ إعدادات العام')}).catch(apiError)}
 function saveInst(){api('saveInst',{installments:D.installments.map(i=>({id:i.id,from:document.getElementById('f'+i.id).value,to:document.getElementById('t'+i.id).value,target:+document.getElementById('x'+i.id).value||0}))}).then(st=>{applyState(st);alert('تم حفظ الأقساط والمستهدفات');settings();home()}).catch(apiError)}
 function saveRules(){api('saveRules',{rules:D.rules.map((r,n)=>({name:r.name,q1:+document.getElementById('a'+n).value||0,q2:+document.getElementById('b'+n).value||0,q3:+document.getElementById('c'+n).value||0}))}).then(st=>{applyState(st);alert('تم حفظ نسب السداد')}).catch(apiError)}
@@ -695,23 +706,25 @@ const num=v=>{const n=Number(v);return isFinite(n)&&n>0?n:0;};
 const LEVEL_LABEL={GROUP:'حسب المجموعات',FLAT:'مبلغ واحد لكل المراحل'};
 function feeRow(stage,dept){return (D.stageFees||{})[stage+'|'+dept]||null;}
 function deptLabel(d){return d==='American'?'أمريكي':(d==='British'?'بريطاني':d);}
-function deptSelect(id,v){return `<select id="${id}"><option value="American"${v==='American'?' selected':''}>أمريكي</option><option value="British"${v==='British'?' selected':''}>بريطاني</option></select>`;}
-function groupItemIdx(){return FEE_ITEMS.map((it,i)=>i).filter(i=>FEE_ITEMS[i].active!==false&&FEE_ITEMS[i].level!=='FLAT');}
-function flatItemIdx(){return FEE_ITEMS.map((it,i)=>i).filter(i=>FEE_ITEMS[i].active!==false&&FEE_ITEMS[i].level==='FLAT');}
+function deptSelect(id,v){const l=(D.departments||[]).slice(); if(v&&l.indexOf(v)<0)l.push(v);
+  return `<select id="${id}">`+l.map(d=>`<option value="${escapeHtml(d)}"${d===v?' selected':''}>${escapeHtml(deptLabel(d))}</option>`).join('')+`</select>`;}
+function groupItemIdx(){return FEE_ITEMS.map((it,i)=>i).filter(i=>!FEE_ITEMS[i].historical&&FEE_ITEMS[i].active!==false&&FEE_ITEMS[i].level!=='FLAT');}
+function flatItemIdx(){return FEE_ITEMS.map((it,i)=>i).filter(i=>!FEE_ITEMS[i].historical&&FEE_ITEMS[i].active!==false&&FEE_ITEMS[i].level==='FLAT');}
 function feeEditorInit(){
-  FEE_ITEMS=(D.rules||[]).map(r=>({name:r.name,mandatory:r.mandatory!==false,active:r.active!==false,level:r.level==='FLAT'?'FLAT':'GROUP'}));
+  // a type outside the approved five (historical data only) is kept exactly as stored and not editable
+  FEE_ITEMS=(D.rules||[]).map(r=>({name:r.name,mandatory:r.mandatory!==false,active:r.active!==false,level:r.level==='FLAT'?'FLAT':'GROUP',historical:FEE_TYPES_FIXED.indexOf(r.name)<0}));
   FEE_GROUPS=(D.feeGroups||[]).map(g=>{const first=g.stages.map(st=>feeRow(st,g.department)).find(Boolean)||{};
     const amounts={}; FEE_ITEMS.forEach(it=>{amounts[it.name]=num(first[it.name]);});
     return {name:g.name,department:g.department,stages:g.stages.slice(),amounts};});
   FEE_FLAT={}; FEE_ITEMS.forEach(it=>{const key=Object.keys(D.stageFees||{}).find(x=>num(D.stageFees[x][it.name])>0); FEE_FLAT[it.name]=key?num(D.stageFees[key][it.name]):0;});
   FEE_OVR=[];  // a member stage whose amount differs from its group's is shown as an override
   FEE_GROUPS.forEach(g=>g.stages.forEach(st=>{const r=feeRow(st,g.department); if(!r)return;
-    FEE_ITEMS.forEach(it=>{ if(it.level==='FLAT')return; if(num(r[it.name])!==g.amounts[it.name]) FEE_OVR.push({department:g.department,stage:st,item:it.name,amount:num(r[it.name])}); });}));
+    FEE_ITEMS.forEach(it=>{ if(it.level==='FLAT'||it.historical)return; if(num(r[it.name])!==g.amounts[it.name]) FEE_OVR.push({department:g.department,stage:st,item:it.name,amount:num(r[it.name])}); });}));
   feeEditorRender();
 }
 function feeEditorRender(){
   const ib=document.getElementById('feeItems');
-  if(ib) ib.innerHTML=FEE_ITEMS.map((it,k)=>`<tr><td>${escapeHtml(it.name)}${it.isNew?' <span class="muted">(جديد)</span>':''}</td>`+
+  if(ib) ib.innerHTML=FEE_ITEMS.map((it,k)=>it.historical?`<tr><td>${escapeHtml(it.name)}</td><td colspan="3" class="muted">تاريخي — محفوظ كما هو ولا يُستخدم في العمليات الجديدة</td></tr>`:`<tr><td>${escapeHtml(it.name)}</td>`+
     `<td><select id="it_m_${k}"><option value="1"${it.mandatory?' selected':''}>إجباري</option><option value="0"${it.mandatory?'':' selected'}>اختياري</option></select></td>`+
     `<td><select id="it_a_${k}"><option value="1"${it.active!==false?' selected':''}>مفعّل</option><option value="0"${it.active===false?' selected':''}>موقوف</option></select></td>`+
     `<td><select id="it_l_${k}" onchange="feeEditorCollect();feeEditorRender()"><option value="GROUP"${it.level!=='FLAT'?' selected':''}>${LEVEL_LABEL.GROUP}</option><option value="FLAT"${it.level==='FLAT'?' selected':''}>${LEVEL_LABEL.FLAT}</option></select></td></tr>`).join('');
@@ -728,7 +741,17 @@ function feeEditorRender(){
     `<td><select id="bo_s_${i}">${(D.stages||[]).map(st=>`<option value="${st}"${st===o.stage?' selected':''}>${st}</option>`).join('')}</select></td>`+
     `<td><select id="bo_t_${i}">${gi.map(k=>`<option value="${escapeHtml(FEE_ITEMS[k].name)}"${FEE_ITEMS[k].name===o.item?' selected':''}>${escapeHtml(FEE_ITEMS[k].name)}</option>`).join('')}</select></td>`+
     `<td><input id="bo_v_${i}" type="number" min="0" value="${num(o.amount)}"></td><td><button type="button" class="alt small-btn" onclick="removeFeeOverride(${i})">✖</button></td></tr>`).join('');
+  renderFeeCurrent();
   renderFeeWarning();
+}
+/* 📄 current FEE_SCHEDULE rows of the year, read-only, straight from the loaded state (no API call) */
+function renderFeeCurrent(){
+  const el=document.getElementById('feeCurrent'), t=document.getElementById('feeCurrentTitle'); if(!el)return;
+  const F=D.stageFees||{}, keys=Object.keys(F).sort(), types=(D.rules||[]).map(r=>r.name);
+  if(t)t.textContent='📄 البنود الحالية ('+keys.length+')';
+  el.innerHTML=keys.length?'<table><thead><tr><th>المرحلة</th><th>القسم</th>'+types.map(x=>`<th>${escapeHtml(x)}</th>`).join('')+'</tr></thead><tbody>'+
+    keys.map(k=>{const p=splitFeeKey(k);return `<tr><td>${escapeHtml(p.stage)}</td><td>${escapeHtml(p.dept==='ALL'?'بدون قسم':deptLabel(p.dept))}</td>`+types.map(x=>`<td>${fmtMoney(num(F[k][x]))}</td>`).join('')+'</tr>';}).join('')+'</tbody></table>'
+    :'<p class="muted">لا توجد بنود بعد.</p>';
 }
 function selectedValues(el){if(!el)return null; if(el.selectedOptions)return Array.from(el.selectedOptions).map(o=>o.value); return Array.isArray(el.values)?el.values.slice():null;}
 function feeEditorCollect(){
@@ -743,21 +766,9 @@ function feeEditorCollect(){
   FEE_ITEMS.forEach((it,k)=>{ if(v('it_m_'+k))it.mandatory=v('it_m_'+k).value!=='0'; if(v('it_a_'+k))it.active=v('it_a_'+k).value!=='0';
     if(v('it_l_'+k))it.level=v('it_l_'+k).value==='FLAT'?'FLAT':'GROUP'; });
 }
-function addFeeItem(){
-  feeEditorCollect(); const v=id=>document.getElementById(id);
-  const name=String((v('ni_name')||{}).value||'').trim();
-  if(!name){alert('اكتب اسم البند');return;}
-  if(FEE_ITEMS.some(it=>it.name===name)){alert('يوجد بند بنفس الاسم');return;}
-  const q=['ni_q1','ni_q2','ni_q3'].map(id=>Number((v(id)||{}).value||0));
-  if(q.some(x=>!isFinite(x)||x<0||x>100)||Math.abs(q[0]+q[1]+q[2]-100)>0.001){alert('نسب الأقساط يجب أن يكون مجموعها 100%');return;}
-  const it={name,mandatory:(v('ni_mand')||{}).value!=='0',active:true,level:(v('ni_level')||{}).value==='FLAT'?'FLAT':'GROUP',isNew:true,q1:q[0],q2:q[1],q3:q[2]};
-  FEE_ITEMS.push(it); FEE_GROUPS.forEach(g=>{g.amounts[name]=0;}); FEE_FLAT[name]=0;
-  ['ni_name','ni_q1','ni_q2','ni_q3'].forEach(id=>{if(v(id))v(id).value='';});
-  feeEditorRender();
-}
-function addFeeGroup(){feeEditorCollect();const amounts={};FEE_ITEMS.forEach(it=>amounts[it.name]=0);FEE_GROUPS.push({name:'',department:'American',stages:[],amounts});feeEditorRender();}
+function addFeeGroup(){feeEditorCollect();const amounts={};FEE_ITEMS.forEach(it=>amounts[it.name]=0);FEE_GROUPS.push({name:'',department:(D.departments||[])[0]||'',stages:[],amounts});feeEditorRender();}
 function removeFeeGroup(i){feeEditorCollect();FEE_GROUPS.splice(i,1);feeEditorRender();}
-function addFeeOverride(){feeEditorCollect();const gi=groupItemIdx();FEE_OVR.push({department:'American',stage:(D.stages||[])[0]||'',item:gi.length?FEE_ITEMS[gi[0]].name:'',amount:0});feeEditorRender();}
+function addFeeOverride(){feeEditorCollect();const gi=groupItemIdx();FEE_OVR.push({department:(D.departments||[])[0]||'',stage:(D.stages||[])[0]||'',item:gi.length?FEE_ITEMS[gi[0]].name:'',amount:0});feeEditorRender();}
 function removeFeeOverride(i){feeEditorCollect();FEE_OVR.splice(i,1);feeEditorRender();}
 /* expand groups -> stage|department rows (what writeFees_ and the engine already understand) */
 function buildStageFees(){
@@ -766,7 +777,8 @@ function buildStageFees(){
     for(const st of g.stages){ const k=st+'|'+g.department;
       if(seen[k]) throw new Error('المرحلة '+st+' موجودة في أكثر من مجموعة لقسم '+deptLabel(g.department)); seen[k]=1;
       const row={}, old=feeRow(st,g.department)||{};
-      FEE_ITEMS.forEach(it=>{ row[it.name]= it.active===false ? num(old[it.name])            // a stopped item keeps its stored amount
+      FEE_ITEMS.forEach(it=>{ if(it.historical){ if(Object.prototype.hasOwnProperty.call(old,it.name)) row[it.name]=num(old[it.name]); return; } // historical type: only where it already exists
+                              row[it.name]= it.active===false ? num(old[it.name])            // a stopped item keeps its stored amount
                                           : it.level==='FLAT' ? num(FEE_FLAT[it.name]) : num(g.amounts[it.name]); });
       out[k]=row; } }
   for(const o of FEE_OVR){ const k=o.stage+'|'+o.department;
@@ -794,7 +806,7 @@ function saveFees(){
   feeEditorCollect(); let stageFees;
   try{ stageFees=buildStageFees(); }catch(e){ alert(e.message); return; }
   const feeGroups=FEE_GROUPS.map(g=>({name:g.name,department:g.department,stages:g.stages.slice()}));
-  const items=FEE_ITEMS.map(it=>{const o={name:it.name,mandatory:it.mandatory,active:it.active,level:it.level}; if(it.isNew){o.q1=it.q1;o.q2=it.q2;o.q3=it.q3;} return o;});
+  const items=FEE_ITEMS.map(it=>({name:it.name,mandatory:it.mandatory,active:it.active,level:it.level}));
   api('saveFees',{stageFees,feeGroups,items}).then(st=>{applyState(st);feeEditorInit();alert('تم حفظ اللائحة')}).catch(apiError)}
 function studentStatus(s){return s.active===false?'غير نشط':'نشط'}
 function studentHasDistribution(sid){
@@ -857,7 +869,7 @@ function studentFees(s){const F=D.stageFees||{}, g=String(((s||{}).grade)||'');
   const a=g+'|'+FEE_DEPT_ALL; return Object.prototype.hasOwnProperty.call(F,a)?chargeableFees(a,F[a]):{};}
 /* Mandatory + Active items are charged automatically; Optional/Inactive items only through a Master run,
    where the assigned amount is the student's due for that item (mirror of Code.gs). */
-function isChargeable(name){const r=(D.rules||[]).find(x=>x.name===name); return !r||(r.mandatory!==false&&r.active!==false);}
+function isChargeable(name){if(FEE_TYPES_FIXED.indexOf(name)<0)return false; const r=(D.rules||[]).find(x=>x.name===name); return !r||(r.mandatory!==false&&r.active!==false);}
 let CHARGE_CACHE=null;
 function chargeableFees(key,fees){ if(!CHARGE_CACHE||CHARGE_CACHE.d!==D||CHARGE_CACHE.r!==D.rules||CHARGE_CACHE.f!==D.stageFees) CHARGE_CACHE={d:D,r:D.rules,f:D.stageFees,map:{}};
   const m=CHARGE_CACHE.map; if(m[key])return m[key]; const o={}; Object.keys(fees||{}).forEach(t=>{if(isChargeable(t))o[t]=fees[t];}); return (m[key]=o);}
@@ -1540,7 +1552,7 @@ const MASTER_HEADERS=['Student Code','Student Name','Stage','Class Name','Depart
 const MASTER_REQUIRED=['Student Code','Installment Type','Expense Type','Amount'];
 const MASTER_MAX_ROWS=20000;
 let MASTER_STATE=null;
-function masterExpenseTypes(state){return (state.rules||[]).filter(r=>r.active!==false).map(r=>r.name);}   // every active item of the schedule
+function masterExpenseTypes(state){return (state.rules||[]).filter(r=>r.active!==false&&FEE_TYPES_FIXED.indexOf(r.name)>=0).map(r=>r.name);}   // every active item of the schedule
 function buildMasterXlsx(state){
   var students=(state.students||[]).filter(function(s){return s.active!==false;}).sort(function(a,b){return Number(a.ser)-Number(b.ser);});
   var inst=(state.installments||[]).map(function(i){return i.name;}), exp=masterExpenseTypes(state);
@@ -1647,7 +1659,6 @@ function downloadStudentTemplate(){
 function normStageKey(g){return String(g==null?'':g).replace(/\s+/g,'').trim();}
 /* Stage / Class Name / Department parsing — mirrors parseStageValue_ / normDepartment_ in Code.gs */
 var IMPORT_STAGE_ALIASES={'STAGE-1':'KG1','STAGE1':'KG1','STAGE-2':'KG2','STAGE2':'KG2'};
-var IMPORT_DEPARTMENTS={'BR':'British','BRITISH':'British','AM':'American','AMERICAN':'American'};
 function parseStageCell(raw){
   var v=String(raw==null?'':raw).trim(); if(!v) return {stage:'',className:''};
   var cls='', m=v.match(/^(.*?)[\s\-_]*([A-Za-z])$/);
@@ -1655,7 +1666,6 @@ function parseStageCell(raw){
   var key=normStageKey(v).toUpperCase().replace(/[-_]+$/,'');
   return {stage:IMPORT_STAGE_ALIASES[key]||IMPORT_STAGE_ALIASES[key.replace(/-/g,'')]||normStageKey(v), className:cls};
 }
-function parseDepartmentCell(d){ var v=String(d==null?'':d).trim(); return v?(IMPORT_DEPARTMENTS[v.toUpperCase()]||''):''; }
 function parseActiveCell(v){
   if(v===true||v===false) return v;
   var s=String(v==null?'':v).trim().toLowerCase();
@@ -1674,14 +1684,17 @@ function validateImportRows(rows, state){
   // being absent from an empty list. Once they exist they are authoritative (same rule as the server).
   var bootstrapStages=!(state.stages||[]).length, bootstrapClasses=!(state.classNames||[]).length;
   var classSet={}; (state.classNames||[]).forEach(function(c){classSet[String(c).toUpperCase()]=1;});
-  res.newStages={}; res.newClassNames={};
+  // Departments master: a value must already be in it; only a brand-new year (no stages, no departments) takes them from this file.
+  var deptSet={}; (state.departments||[]).forEach(function(d){deptSet[d]=1;});
+  var bootstrapDepts=bootstrapStages&&!(state.departments||[]).length;
+  res.newStages={}; res.newClassNames={}; res.newDepartments={};
   var byCode={}; (state.students||[]).forEach(function(s){byCode[String(s.code||s.ser).trim()]=s;});
   var seen={};
   for(var i=1;i<rows.length;i++){
     var r=rows[i]||[], code=String(r[0]==null?'':r[0]).trim(), name=String(r[1]==null?'':r[1]).trim(), stageRaw=String(r[2]==null?'':r[2]).trim(),
         clsRaw=String(r[3]==null?'':r[3]).trim(), deptRaw=String(r[4]==null?'':r[4]).trim(), act=r[5];
     if(code===''&&name===''&&stageRaw===''&&clsRaw===''&&deptRaw===''&&(act==null||String(act).trim()==='')) continue; // blank row
-    var parsed=parseStageCell(stageRaw), stage=parsed.stage, cls=(clsRaw?clsRaw.toUpperCase():parsed.className), dept=parseDepartmentCell(deptRaw);
+    var parsed=parseStageCell(stageRaw), stage=parsed.stage, cls=(clsRaw?clsRaw.toUpperCase():parsed.className), dept=deptAlias(deptRaw);
     res.total++;
     var rowNo=i+1, errs=[];
     if(code==='') errs.push('Student Code فارغ');
@@ -1693,7 +1706,7 @@ function validateImportRows(rows, state){
     else if(!stageName) errs.push('Stage غير موجودة ضمن مراحل السنة الحالية: "'+stageRaw+'"');
     if(cls&&!/^[A-Z0-9]{1,4}$/.test(cls)) errs.push('Class Name غير صالح: "'+clsRaw+'"');
     else if(cls&&!classSet[cls]){ if(bootstrapClasses) res.newClassNames[cls]=1; else errs.push('Class Name غير موجود ضمن فصول السنة الحالية: "'+clsRaw+'"'); }
-    if(deptRaw&&!dept) errs.push('Department غير صالح: "'+deptRaw+'"');
+    if(dept&&!deptSet[dept]){ if(bootstrapDepts&&dept.toUpperCase()!=='ALL') res.newDepartments[dept]=1; else errs.push('Department غير موجود في قائمة الأقسام: "'+deptRaw+'" — أضفه من الإعدادات أولًا'); }
     var active=parseActiveCell(act); if(active===null) errs.push('Active يجب أن تكون TRUE أو FALSE');
     var existing=code!==''?byCode[code]:null, action='add';
     if(existing){
@@ -1737,7 +1750,7 @@ function renderImportPreview(){
   var changes=R.valid.filter(function(v){return v.action!=='unchanged';});
   var previewRows=changes.slice(0,300);
   out.innerHTML=
-    (function(){var ns=Object.keys(R.newStages||{}).sort(), nc=Object.keys(R.newClassNames||{}).sort();return (ns.length||nc.length)?('<div class="muted" style="margin-bottom:6px">✨ أول استيراد لهذه السنة — ستُنشأ من الملف: '+(ns.length?('<b>'+ns.length+' مرحلة</b> ('+escapeHtml(ns.join('، '))+')'):'')+(ns.length&&nc.length?' و ':'')+(nc.length?('<b>'+nc.length+' Class Name</b> ('+escapeHtml(nc.join('، '))+')'):'')+'</div>'):'';})()+
+    (function(){var ns=Object.keys(R.newStages||{}).sort(), nc=Object.keys(R.newClassNames||{}).sort(), nd=Object.keys(R.newDepartments||{}).sort();return (ns.length||nc.length||nd.length)?('<div class="muted" style="margin-bottom:6px">✨ أول استيراد لهذه السنة — ستُنشأ من الملف: '+(ns.length?('<b>'+ns.length+' مرحلة</b> ('+escapeHtml(ns.join('، '))+')'):'')+(ns.length&&nc.length?' و ':'')+(nc.length?('<b>'+nc.length+' Class Name</b> ('+escapeHtml(nc.join('، '))+')'):'')+(nd.length?(' و <b>'+nd.length+' قسم</b> ('+escapeHtml(nd.join('، '))+')'):'')+'</div>'):'';})()+
     '<div class="muted" style="margin-bottom:6px">الملف: '+escapeHtml(IMPORT_STATE.fileName)+' — العام الدراسي: '+escapeHtml(D.academicYear||'')+'</div>'+
     '<div class="grid">'+
       '<div><label>إجمالي الصفوف</label><div class="big">'+fmt(R.total)+'</div></div>'+
